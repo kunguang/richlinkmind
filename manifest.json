@@ -8,5 +8,7 @@
     "authorUrl": "https://github.com/kunguang",
     "fundingUrl": "https://door.ethanliang.top",
     "isDesktopOnly": false,
-    "main": "main.js"
+    "main": "main.js",
+    "repo": "kunguang/richlinkmind",
+    "releaseRepo": "kunguang/richlinkmind"
 }
