@@ -6,8 +6,6 @@
 // @ts-ignore
 import { nodeRichTextToTextWithWrap, htmlEscape } from 'simple-mind-map/src/utils'
 import { textToNodeRichTextWithWrap } from 'simple-mind-map/src/utils'
-import { Converter } from "./showdown";
-
 import { Notice } from "obsidian";
 export const smm2outlines = (mindMap, data, contentEl, document) => {
     data.root = true // 标记根节点
@@ -176,19 +174,8 @@ export const smm2outlines = (mindMap, data, contentEl, document) => {
             const content = document.createElement('span');
             content.className = 'smm-dg-node-content';
             let textContent = getNodeText(node);
-            // 1. 创建高亮语法扩展
-            const highlightExtension = {
-                type: 'lang', // 语言层扩展
-                regex: /==([^=]+)==/g, // 匹配 ==文本==
-                replace: '<mark>$1</mark>' // 替换为 <mark> 标签
-            };
-            const converter = new showdown.Converter({
-                tables: true,
-                tasklists: true, // 启用任务列表解析
-                extensions: [highlightExtension], // 加载扩展
-            });
-            const html = converter.makeHtml(rawMarkdown);
-            content.textContent = html;
+
+            content.textContent = textContent;
             // 双击编辑
             content.ondblclick = e => {
                 e.stopPropagation();

@@ -1,13 +1,12 @@
 {
-	"id": "linkmind",
-	"name": "LinkMind",
-	"version": "0.0.1",
-	"minAppVersion": "0.15.0",
-	"description": "The markdown version of ob-smm",
-	"author": "Ethan Refrain",
-	"authorUrl": "https://github.com/LXiangEthan",
-	"fundingUrl": "https://door.ethanliang.top",
-	"isDesktopOnly": false,
-	"main": "main.js",
-	"updateUrl": "https://cdn.jsdelivr.net/gh/LXiangEthan/obsidian-simplemindmap@master/manifest.json"
+    "id": "richlinkmind",
+    "name": "RichLinkMind",
+    "version": "0.0.1",
+    "minAppVersion": "0.15.0",
+    "description": "The markdown version of ob-smm",
+    "author": "zhukunguang",
+    "authorUrl": "https://github.com/kunguang",
+    "fundingUrl": "https://door.ethanliang.top",
+    "isDesktopOnly": false,
+    "main": "main.js"
 }

@@ -1,5 +1,5 @@
 
-import {IconName, Notice, TextFileView, TFile} from "obsidian";
+import { IconName, Notice, TextFileView, TFile } from "obsidian";
 import MindMap from "simple-mind-map";
 // @ts-ignore
 import Drag from 'simple-mind-map/src/plugins/Drag.js'
@@ -13,6 +13,7 @@ import AssociativeLine from 'simple-mind-map/src/plugins/AssociativeLine.js'
 import Themes from 'simple-mind-map-plugin-themes'
 // @ts-ignore
 import Search from 'simple-mind-map/src/plugins/Search.js'
+import { Converter } from "utils/showdown";
 
 // @ts-ignore
 import Export from 'simple-mind-map/src/plugins/Export.js'
@@ -22,11 +23,11 @@ import OuterFrame from 'simple-mind-map/src/plugins/OuterFrame.js'
 
 // @ts-ignore
 import MiniMap from 'simple-mind-map/src/plugins/MiniMap.js'
-import {smm_panel} from "./renders/panel";
+import { smm_panel } from "./renders/panel";
 // @ts-ignore
-import {buttons} from "./renders/buttons";
+import { buttons } from "./renders/buttons";
 // @ts-ignore
-import {nodeIconList} from './renders/icon'
+import { nodeIconList } from './renders/icon'
 
 // @ts-ignore
 import NodeImgAdjust from 'simple-mind-map/src/plugins/NodeImgAdjust.js'
@@ -39,16 +40,16 @@ import TouchEvent from 'simple-mind-map/src/plugins/TouchEvent.js'
 import Formula from 'simple-mind-map/src/plugins/Formula.js'
 // @ts-ignore
 import RichText from 'simple-mind-map/src/plugins/RichText.js'
-import {buttons_sf} from "./renders/SF";
+import { buttons_sf } from "./renders/SF";
 
 // @ts-ignore
 import MindMapLayoutPro from 'simple-mind-map/src/plugins/MindMapLayoutPro.js'
 
-import {loading_gif} from "./renders/loading_gif";
+import { loading_gif } from "./renders/loading_gif";
 
-import {smm2outlines} from "./utils/smm2outlines";
+import { smm2outlines } from "./utils/smm2Outlines";
 
-import {resize_panel} from "./renders/resize";
+import { resize_panel } from "./renders/resize";
 
 // @ts-ignore
 import RainbowLines from 'simple-mind-map/src/plugins/RainbowLines.js'
@@ -74,7 +75,8 @@ import Painter from 'simple-mind-map/src/plugins/Painter.js'
 import ExportPDF from "simple-mind-map/src/plugins/ExportPDF";
 // @ts-ignore
 import ExportXMind from 'simple-mind-map/src/plugins/ExportXMind'
-import {assembleMarkdownText, parseMarkdownText} from "./utils/metadataAndMarkdown";
+import { assembleMarkdownText, parseMarkdownText } from "./utils/metadataAndMarkdown";
+
 
 MindMap.usePlugin(ExportPDF)
 MindMap.usePlugin(ExportXMind)
@@ -103,598 +105,725 @@ export const VIEW_TYPE_SMM = "smm-view";
 const AsyncLock = require('async-lock');
 const lock = new AsyncLock();
 export class SMMView extends TextFileView {
-	public mindMap: any
-	private miap: any;
-	private viap: any;
-	private smm_mindmap: HTMLDivElement;
-	private viewBoxStyle: any;
-	private currentFile: any;
-	private isStart: boolean;
-	private isEnd: boolean;
-	private node: any;
-	private activeNodeList: any;
-	private isDemoing = false;
-	private noResize = false;
-	private saveTimer: number;
-	private refuse = false;
-	private file_lock = false;
-	private customIcons :any
-	private parseData: { linkdata: []; metadata: { path: string, content: string, tags: [] }; svgdata: string };
-	clear() {
-		this.data = '';
-		if (this.mindMap) {
-			this.mindMap.destroy();
-			this.mindMap = null;
-		}
-		this.contentEl.empty();
-	}
-	getViewType() {
-		return VIEW_TYPE_SMM;
-	}
+  public mindMap: any
+  private miap: any;
+  private viap: any;
+  private smm_mindmap: HTMLDivElement;
+  private viewBoxStyle: any;
+  private currentFile: any;
+  private isStart: boolean;
+  private isEnd: boolean;
+  private node: any;
+  private activeNodeList: any;
+  private isDemoing = false;
+  private noResize = false;
+  private saveTimer: number;
+  private refuse = false;
+  private file_lock = false;
+  private customIcons: any
+  private parseData: { linkdata: []; metadata: { path: string, content: string, tags: [] }; svgdata: string };
+  clear() {
+    this.data = '';
+    if (this.mindMap) {
+      this.mindMap.destroy();
+      this.mindMap = null;
+    }
+    this.contentEl.empty();
+  }
+  getViewType() {
+    return VIEW_TYPE_SMM;
+  }
 
-	async onOpen() {
-		// eslint-disable-next-line no-constant-condition
-		this.registerEvent(this.app.workspace.on('active-leaf-change', async (leaf) => {
-			// @ts-ignore
-			if (this.isLinkFile(this.app.workspace.getActiveFile())) {
-				// eslint-disable-next-line no-self-assign
-				this.currentFile = this.app.workspace.getActiveFile()
-				this.file_lock = false
-			} else {
-				return
-			}
-		}))
-		this.registerEvent(this.app.workspace.on('file-open',()=>{
-			this.file_lock = false
-		}))
-		this.registerEvent(this.app.vault.on('modify',()=>{
-			this.file_lock = true
-		}))
+  async onOpen() {
+    // eslint-disable-next-line no-constant-condition
+    this.registerEvent(this.app.workspace.on('active-leaf-change', async (leaf) => {
+      // @ts-ignore
+      if (this.isLinkFile(this.app.workspace.getActiveFile())) {
+        // eslint-disable-next-line no-self-assign
+        this.currentFile = this.app.workspace.getActiveFile()
+        this.file_lock = false
+      } else {
+        return
+      }
+    }))
+    this.registerEvent(this.app.workspace.on('file-open', () => {
+      this.file_lock = false
+    }))
+    this.registerEvent(this.app.vault.on('modify', () => {
+      this.file_lock = true
+    }))
 
-	}
+  }
 
-	async onClose() {
-		if (this.mindMap) {
-			await this.mindMap.destroy();
-			this.mindMap = null;
-		}
-		this.contentEl.empty()
-	}
-	getIcon(): IconName {
-		return 'ob-smm-brain';
-	}
+  async onClose() {
+    if (this.mindMap) {
+      await this.mindMap.destroy();
+      this.mindMap = null;
+    }
+    this.contentEl.empty()
+  }
+  getIcon(): IconName {
+    return 'ob-smm-brain';
+  }
 
-	getViewData() {
-		return this.data
-	}
+  getViewData() {
+    return this.data
+  }
 
-	async setViewData(data: string) {
-		this.data = data
-		// @ts-ignore
-		this.parseData = parseMarkdownText(data)
-		this.contentEl.style.overflow = 'hidden'
-		if (this.file_lock) {
-			return false
-		}
-		if (this.mindMap) {
-			this.mindMap.destroy();
-			this.mindMap = null;
-		}
-		this.contentEl.empty()
-		this.contentEl.setAttribute('width', '100%')
-		this.contentEl.setAttribute('height', '100%')
-		// @ts-ignore
-		let loadingImg = null
-		// @ts-ignore
-		if (this.app.settings.cartoon) {
-			loadingImg = document.createElement('img')
-			loadingImg.classList.add('smm-loading');
-			loadingImg.src = loading_gif
-		}
-		this.contentEl.createEl('div', {attr: {class: 'smm-window-leaf'}, text: ''});
-		const roots = this.contentEl.querySelector(".smm-window-leaf")
-		// @ts-ignore
-		roots.setAttribute('width', '100%');
-		// @ts-ignore
-		roots.setAttribute('height', '100%');
-		// @ts-ignore
-		if (this.app.settings.cartoon) {
-			// @ts-ignore
-			roots.appendChild(loadingImg)
-		}
-		this.smm_mindmap = document.createElement('div')
-		this.smm_mindmap.setAttribute('class', 'ob-simple-mindMapContainer');
-		this.smm_mindmap.setAttribute('width', '100%');
-		this.smm_mindmap.setAttribute('height', '100%');
-		this.setSetting(roots);
-		// @ts-ignore
-		roots.appendChild(this.smm_mindmap);
-		// @ts-ignore
-		const smm_sf = document.createElement("div")
-		smm_sf.innerHTML = buttons_sf
-		smm_sf.id = "smm-SL"
-		smm_sf.classList.add("smm-button-group")
-		// @ts-ignore
-		roots.appendChild(smm_sf)
-		const smm_panel_d = document.createElement("div")
-		smm_panel_d.id = "smm-panel-container"
-		smm_panel_d.innerHTML = smm_panel
-		smm_panel_d.style.display = "none"
-		// @ts-ignore
-		roots.appendChild(smm_panel_d)
-		const myMinimap = document.createElement('div')
-		myMinimap.setAttribute('class', 'miniMapContainer');
-		this.smm_mindmap.appendChild(myMinimap);
-		myMinimap.style.display = 'none';
-		myMinimap.setAttribute("transform-origin", "left top");
-		const myMinimapborder = document.createElement('div')
-		myMinimapborder.setAttribute('class', 'viewBoxContainer');
-		this.smm_mindmap.appendChild(myMinimapborder);
-		myMinimapborder.style.display = 'none'
-		// @ts-ignore
-		const newData = JSON.parse(this.parseData.metadata.content)
-		// @ts-ignore
-		this.customIcons = await this.getIconize()
-		// @ts-ignore
-		const {root, layout, theme, view} = newData
+  async setViewData(data: string) {
+    this.data = data
+    // @ts-ignore
+    this.parseData = parseMarkdownText(data)
+    this.contentEl.style.overflow = 'hidden'
+    if (this.file_lock) {
+      return false
+    }
+    if (this.mindMap) {
+      this.mindMap.destroy();
+      this.mindMap = null;
+    }
+    this.contentEl.empty()
+    this.contentEl.setAttribute('width', '100%')
+    this.contentEl.setAttribute('height', '100%')
+    // @ts-ignore
+    let loadingImg = null
+    // @ts-ignore
+    if (this.app.settings.cartoon) {
+      loadingImg = document.createElement('img')
+      loadingImg.classList.add('smm-loading');
+      loadingImg.src = loading_gif
+    }
+    this.contentEl.createEl('div', { attr: { class: 'smm-window-leaf' }, text: '' });
+    const roots = this.contentEl.querySelector(".smm-window-leaf")
+    // @ts-ignore
+    roots.setAttribute('width', '100%');
+    // @ts-ignore
+    roots.setAttribute('height', '100%');
+    // @ts-ignore
+    if (this.app.settings.cartoon) {
+      // @ts-ignore
+      roots.appendChild(loadingImg)
+    }
+    this.smm_mindmap = document.createElement('div')
+    this.smm_mindmap.setAttribute('class', 'ob-simple-mindMapContainer');
+    this.smm_mindmap.setAttribute('width', '100%');
+    this.smm_mindmap.setAttribute('height', '100%');
+    this.setSetting(roots);
+    // @ts-ignore
+    roots.appendChild(this.smm_mindmap);
+    // @ts-ignore
+    const smm_sf = document.createElement("div")
+    smm_sf.innerHTML = buttons_sf
+    smm_sf.id = "smm-SL"
+    smm_sf.classList.add("smm-button-group")
+    // @ts-ignore
+    roots.appendChild(smm_sf)
+    const smm_panel_d = document.createElement("div")
+    smm_panel_d.id = "smm-panel-container"
+    smm_panel_d.innerHTML = smm_panel
+    smm_panel_d.style.display = "none"
+    // @ts-ignore
+    roots.appendChild(smm_panel_d)
+    const myMinimap = document.createElement('div')
+    myMinimap.setAttribute('class', 'miniMapContainer');
+    this.smm_mindmap.appendChild(myMinimap);
+    myMinimap.style.display = 'none';
+    myMinimap.setAttribute("transform-origin", "left top");
+    const myMinimapborder = document.createElement('div')
+    myMinimapborder.setAttribute('class', 'viewBoxContainer');
+    this.smm_mindmap.appendChild(myMinimapborder);
+    myMinimapborder.style.display = 'none'
+    // @ts-ignore
+    const newData = JSON.parse(this.parseData.metadata.content)
+    // @ts-ignore
+    this.customIcons = await this.getIconize()
+    // @ts-ignore
+    const { root, layout, theme, view } = newData
 
-		try {
-			// @ts-ignore
-			this.mindMap = new MindMap({
-				el: this.contentEl.querySelector(".ob-simple-mindMapContainer"),
-				data: root,
-				layout: layout,
-				theme: theme.template,
-				themeConfig: theme.config,
-				viewData: view,
-				iconList: this.customIcons
-			})
-			setTimeout(async () => {
-				// @ts-ignore
-				this.addEventWithButton()
-				this.outLinkrefresh()
-				// @ts-ignore
-				if (this.app.settings.cartoon) {
-					// @ts-ignore
-					loadingImg.remove()
-				}
-				await this.saveDataIntoFile()
-			}, 500)
-		} catch (e) {
-			setTimeout(() => {
-				try {
-					// @ts-ignore
-					this.mindMap = new MindMap({
-						el: this.contentEl.querySelector(".ob-simple-mindMapContainer"),
-						data: root,
-						layout: layout,
-						theme: theme.template,
-						themeConfig: theme.config,
-						viewData: view,
-						iconList: this.customIcons
-					})
-					setTimeout(async () => {
-						// @ts-ignore
-						this.addEventWithButton()
-						this.outLinkrefresh()
-						// @ts-ignore
-						if (this.app.settings.cartoon) {
-							// @ts-ignore
-							loadingImg.remove()
-						}
-						await this.saveDataIntoFile()
-					}, 500)
-				} catch {
-					return
-				}
-			}, 1000)
-		}
-	}
-	async simpleSaveSvg(){
-		await lock.acquire('resource', async () => {
-			const current = this.currentFile
-			const content = await this.mindMap.getData(true)
-			const svgObj = await this.mindMap.export('svg', false, '')
-			const svgData = svgObj
-			if (current instanceof TFile && this.isLinkFile(current)) {
-				try {
-					clearTimeout(this.saveTimer)
-					// @ts-ignore
-					this.saveTimer = setTimeout(() => {
-						const data = assembleMarkdownText({metadata:{path:current.path,tags:['linkMind'],content:JSON.stringify(content)},svgdata:svgData,linkdata:this.parseData.linkdata})
-						this.file_lock = true
-						this.app.vault.modify(current, data).then(()=>{
-							this.file_lock = false
-						})
-					}, 100)
-				}catch(e){
-					new Notice(e)
-				}
-			}
-		})
-	}
-	public async saveDataIntoFile() {
-		await lock.acquire('resource', async () => {
-		const current = this.currentFile
-		const content = await this.mindMap.getData(true)
-		const svgData = this.parseData.svgdata
-		if (current instanceof TFile && this.isLinkFile(current)) {
-			try {
+    try {
+      // @ts-ignore
+      this.mindMap = new MindMap({
+        el: this.contentEl.querySelector(".ob-simple-mindMapContainer"),
+        data: root,
+        layout: layout,
+        theme: theme.template,
+        themeConfig: theme.config,
+        viewData: view,
+        iconList: this.customIcons,
+        customNoteContentShow: {
+          show: (content: string, left: number, top: number) => {
+            // 1. 创建高亮语法扩展
+            const highlightExtension = {
+              type: 'lang', // 语言层扩展
+              regex: /==([^=]+)==/g, // 匹配 ==文本==
+              replace: '<mark>$1</mark>' // 替换为 <mark> 标签
+            };
+            const converter = new Converter({
+              tables: true,
+              tasklists: true, // 启用任务列表解析
+              extensions: [highlightExtension], // 加载扩展
+            });
+            // @ts-ignore
+            const html = converter.makeHtml(content);
+            // 创建半透明遮罩层
+            const mask = document.createElement('div');
+            mask.className = 'custom-note-mask';
+            mask.style.position = 'fixed';
+            mask.style.top = '0';
+            mask.style.left = '0';
+            mask.style.width = '100%';
+            mask.style.height = '100%';
+            mask.style.backgroundColor = 'rgba(0,0,0,0.1)'; // 半透明
+            mask.style.zIndex = '9998'; // 低于弹窗
+            mask.style.pointerEvents = 'auto'; // 确保可点击
 
-				clearTimeout(this.saveTimer)
-				// @ts-ignore
-				this.saveTimer = setTimeout(() => {
-					const data = assembleMarkdownText({metadata:{path:current.path,tags:['linkMind'],content:JSON.stringify(content)},svgdata:svgData,linkdata:this.parseData.linkdata})
-						this.file_lock = true
-						this.app.vault.modify(current, data).then(()=>{
-							this.file_lock = false
-						})
-				}, 100)
-			}catch(e){
-				new Notice(e)
-			}
-		}
-	})
+            // 遮罩层点击关闭弹窗
+            mask.addEventListener('click', () => {
+              if (tooltip.parentNode) tooltip.parentNode.removeChild(tooltip);
+              if (mask.parentNode) mask.parentNode.removeChild(mask);
+              (window as any).currentTooltip = null;
+              (window as any).currentMask = null;
+            });
+            // 在这里显示你的自定义弹窗
+            // content表示你插入的备注的内容，left和top时弹窗应该显示的位置，你需要将你的弹窗元素设置成fixed定位
+            // 创建并显示弹窗
+            const tooltip = document.createElement('div');
+            tooltip.className = 'custom-note-tooltip';
+            tooltip.style.position = 'fixed';
+            tooltip.style.left = `${left}px`;
+            tooltip.style.top = `${top}px`;
+            tooltip.style.backgroundColor = 'white';
+            tooltip.style.border = '1px solid #ccc';
+            tooltip.style.padding = '8px';
+            tooltip.style.zIndex = '9999';
+            tooltip.style.maxWidth = '500px'; // 添加最大宽度限制
+            tooltip.style.overflow = 'auto'; // 添加滚动条支持
+            tooltip.style.pointerEvents = 'auto'; // 确保可点击
+            // 添加表格样式
+            const styleElement = document.createElement('style');
+            styleElement.textContent = `
+    .custom-note-tooltip table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 10px 0;
+    }
+    .custom-note-tooltip th, 
+    .custom-note-tooltip td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    .custom-note-tooltip th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    .custom-note-tooltip tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+  `;
+            tooltip.appendChild(styleElement);
+            tooltip.innerHTML += html; // 添加转换后的HTML内容
 
-	}
-	addEventWithButton() {
-		this.mindMap.on("node_active", (node: any, activeNodeList: any) => {
-			this.node = node
-			this.activeNodeList = activeNodeList
-			this.renderNodeStyle()
-		})
-		this.mindMap.on("view_data_change",async ()=>{
-			const scale = this.mindMap.view.getTransformData().state.scale
-			// @ts-ignore
-			this.contentEl.querySelector(".smm-zoom-input").value = parseInt((scale*100))+"%"
-		})
+            document.body.appendChild(tooltip);
 
-		this.mindMap.on("data_change",async ()=>{
-			await this.saveDataIntoFile()
-			this.renderMinimap()
-			this.outLinkrefresh()
-		})
-		this.mindMap.keyCommand.addShortcut('Control+F8', () => {
-			this.mindMap.renderer.textEdit.show({node:this.node})
-		})
-		this.miap = this.contentEl.querySelector(".miniMapContainer")
-		this.viap = this.contentEl.querySelector(".viewBoxContainer")
-		this.miap.style.display = "none"
-		this.viap.style.display = 'none'
-		this.noResize = false
-		this.app.workspace.on("resize",()=>{
-			if(this.noResize){
-				return
-			}
-			if(!this.mindMap){
-				return
-			}
-			try {
-				this.mindMap.resize()
-			}catch{
-			// 	莫名其妙的报错
-			}
-		})
-		// @ts-ignore
-		this.mindMap?.resize()
-			// @ts-ignore
-		this.contentEl.querySelector("#smm-createAssociativeLine").onclick = async () => {
-				try {
-					this.mindMap.associativeLine.createLineFromActiveNode()
-				} catch {
-					new Notice("请选择节点，概要无法链接")
-				}
-			}
-			// @ts-ignore
-		this.contentEl.querySelector("#smm-addOutLine").onclick = async () => {
-				try {
-					this.mindMap.execCommand('ADD_OUTER_FRAME', [], {})
-				} catch {
-					new Notice("外框添加失败")
-				}
-			}
-			// @ts-ignore
-		this.contentEl.querySelector("#smm-GENERALIZATION").onclick = async ()=>{
-				this.mindMap.execCommand('ADD_GENERALIZATION',{text:'概要'},true)
-			}
-			// @ts-ignore
-		this.contentEl.querySelector("#smm-showMap").onclick = () => {
-				try {
-					if(this.miap.style.display == "none"){
-						this.miap.removeAttribute('style')
-						this.viap.removeAttribute('style')
-						this.renderMinimap()
-					}else {
-						this.miap.style.display = 'none'
-						this.viap.style.display = 'none'
-					}
-				} catch {
-					new Notice("外框添加失败")
-				}
-			}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-addLink-button").onclick = ()=>{
-			// @ts-ignore
-			this.contentEl.querySelector("#smm-insertLink").removeAttribute("style")
-		}
-		this.renderLinkInput()
-		this.renderTag()
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-setnote").onclick = ()=>{
-				// @ts-ignore
-				this.contentEl.querySelector("#smm-input-note").removeAttribute("style")
-				const pre_note = this.node?.getData('note')
-				if(!pre_note){
-					return
-				}
-				// @ts-ignore
-				this.contentEl.querySelector(".smm-note-input").value = pre_note!==undefined?pre_note:""
-			}
-		// @ts-ignore
-		// 更新字符计数
-		const textarea = document.querySelector('.smm-note-input');
-		const charCount = this.contentEl.querySelector('#char-count');
-		// @ts-ignore
-		textarea.addEventListener('input', () => {
-			// @ts-ignore
-			const count = textarea.value.length;
-			// @ts-ignore
-			charCount.textContent = count;
-			// 限制最大字符数
-			if (count > 1000) {
-				// @ts-ignore
-				textarea.value = textarea.value.substring(0, 1000);
-				// @ts-ignore
-				charCount.textContent = 1000;
-				new Notice("最大字数为1000字",1200)
-			}
-		});
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-save-note").onclick = ()=>{
-			// @ts-ignore
-			const textarrea_note = this.contentEl.querySelector(".smm-note-input")
-			// @ts-ignore
-			const text = textarrea_note.value
-			this.mindMap.execCommand('SET_NODE_NOTE',this.node,text)
-			// @ts-ignore
-			textarrea_note.value = ""
-			// @ts-ignore
-			this.contentEl.querySelector("#smm-input-note").style.display = "none"
+            // 缓存弹窗以便后续清除
+            (window as any).currentTooltip = tooltip;
+            // 添加关闭按钮
+            const closeBtn = document.createElement('div');
+            closeBtn.innerHTML = '×';
+            closeBtn.style.position = 'absolute';
+            closeBtn.style.right = '5px';
+            closeBtn.style.top = '5px';
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.style.zIndex = '10000';
+            tooltip.appendChild(closeBtn);
 
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-close-note").onclick = ()=>{
-			// @ts-ignore
-			this.contentEl.querySelector("#smm-input-note").style.display = "none"
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-hide-search").onclick = ()=>{
-			// @ts-ignore
-			if(this.contentEl.querySelector(".smm-search-container").style.display == "none"){
-				// @ts-ignore
-				this.contentEl.querySelector(".smm-search-container").removeAttribute("style")
-			}else{
-				// @ts-ignore
-				this.contentEl.querySelector(".smm-search-container").style.display = "none"
-				// @ts-ignore
-				this.contentEl.querySelector(".smm-search-input").value = ""
-			}
-		}
+            // 关闭按钮点击事件
+            closeBtn.addEventListener('click', () => {
+              if (tooltip.parentNode) tooltip.parentNode.removeChild(tooltip);
+              if (mask.parentNode) mask.parentNode.removeChild(mask);
+              (window as any).currentTooltip = null;
+              (window as any).currentMask = null;
+            });
 
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-formula-button").onclick = ()=>{
-			// @ts-ignore
-			this.contentEl.querySelector(".smm-formula-editor").removeAttribute("style")
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-formula-cancel").onclick = ()=>{
-			// @ts-ignore
-			this.contentEl.querySelector(".smm-formula-editor").style.display = "none"
-		}
-			// @ts-ignore
-			this.contentEl.querySelector("#smm-formula-enter").onclick = ()=>{
-				// @ts-ignore
-				const latexText = this.contentEl.querySelector(".smm-formula-input").value
-				this.mindMap.execCommand('INSERT_FORMULA', latexText, this.activeNodeList)
-				// @ts-ignore
-				this.contentEl.querySelector(".smm-formula-editor").style.display = "none"
-			}
-		// @ts-ignore
-		this.contentEl.querySelector(".smm-zoom-input").onclick = ()=>{
-			this.mindMap.view.reset();
-			// @ts-ignore
-			this.contentEl.querySelector(".smm-zoom-input").value = "100%"
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-enlarge-button").onclick = ()=>{
-			this.mindMap.view.enlarge();
-			// @ts-ignore
-			const scale = this.contentEl.querySelector(".smm-zoom-input").value;
-			const num = parseInt(scale.split("%")[0])+25
-			// @ts-ignore
-			this.contentEl.querySelector(".smm-zoom-input").value = num+"%"
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-narrow-button").onclick = ()=>{
-			this.mindMap.view.narrow();
+            // 弹窗点击阻止冒泡
+            tooltip.addEventListener('click', (e) => {
+              e.stopPropagation(); // 关键修复：阻止事件冒泡到遮罩层
+            });
+            // 先添加遮罩层再添加弹窗
+            document.body.appendChild(mask);
+            document.body.appendChild(tooltip);
 
-			// @ts-ignore
-			const scale = this.contentEl.querySelector(".smm-zoom-input").value;
-			const num = parseInt(scale.split("%")[0])-25
-			// @ts-ignore
-			this.contentEl.querySelector(".smm-zoom-input").value = num+"%"
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-center-button").onclick = ()=>{
-			this.mindMap.view.fit();
-		}
-		// @ts-ignore
-		this.mindMap.on('back_forward', (index, len) => {
-			this.isStart = index <= 0
-			this.isEnd = index >= len - 1
-		})
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-back").onclick = ()=>{
-			if(this.isStart){
-				new Notice("当前处于历史记录最开始",3000)
-			}else{
-				this.mindMap.execCommand('BACK')
-			}
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-forward").onclick = ()=>{
-			if(this.isEnd){
-				new Notice("当前是最新历史记录",3000)
-			}else{
-				this.mindMap.execCommand('FORWARD')
-			}
-		}
-		// @ts-ignore
-		this.contentEl.querySelector(".smm-search-btn").onclick = ()=>{
-			// @ts-ignore
-			this.mindMap.search.search(this.contentEl.querySelector("#searchInput").value, () => {
-				// @ts-ignore
-				this.contentEl.querySelector("#searchInput").focus()
-			})
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#searchInput").onkeyup = (event)=>{
-			event.preventDefault();
-			if (event.keyCode === 13) {
-				// @ts-ignore
-				this.mindMap.search.search(this.contentEl.querySelector("#searchInput").value, () => {
-					// @ts-ignore
-					this.contentEl.querySelector("#searchInput").focus()
-				})
-			}
-			if(event.keyCode === 27){
-				// @ts-ignore
-				this.contentEl.querySelector(".smm-search-container").style.display = "none"
-			}
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-insert-node").onclick = ()=>{
-			this.mindMap.execCommand('INSERT_CHILD_NODE')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-delete-node").onclick = ()=>{
-			this.mindMap.execCommand('REMOVE_NODE')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-panel-button").onclick = ()=>{
-			const panel = this.contentEl.querySelector("#smm-panel-container")
-			// @ts-ignore
-			if(panel.style.display == "none"){
-				// @ts-ignore
-				panel.removeAttribute("style")
-			}else{
-				// @ts-ignore
-				panel.style.display = "none"
-			}
-		}
-		this.bandOnPanel()
-		this.getTheme()
-		const allTheme = this.contentEl.querySelectorAll(".smm-theme-card")
-		// @ts-ignore
-		for(const theme of allTheme){
-			theme.onclick = ()=>{
-				const themeName = theme.getAttribute("themeCal")
-				this.mindMap.setThemeConfig({})
-				this.mindMap.setTheme(themeName,false)
-				this.mindMap.emit('data_change')
-			}
-		}
-		const allStructure = this.contentEl.querySelectorAll(".smm-structure-card")
-		// @ts-ignore
-		for(const structure of allStructure){
-			structure.onclick = ()=>{
-				const structureName = structure.getAttribute("structure-cal")
-				this.mindMap.setLayout(structureName)
-				this.mindMap.emit('data_change')
-			}
-		}
-		this.upload_Image()
-		this.renderIcons()
-			// @ts-ignore
-			for(const ic of this.contentEl.querySelectorAll(".smm-imgtag-icon-card")) {
-				ic.onclick = ()=>{
-					// @ts-ignore
-					const imgtag = ic.getAttribute("destiny")
-					for(const anode of this.activeNodeList){
-						anode.setIcon([imgtag])
-					}
-				}
-			}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-list-table").addEventListener('mouseenter',()=>{
-			const list = this.contentEl.querySelector("#smm-list-tables")
-			// @ts-ignore
-			list.removeAttribute('style')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-exit-button-panel').onclick = ()=>{
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-panel-container').style.display = "none"
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-list-tables").addEventListener("mouseleave", ()=>{
-			setTimeout(()=>{
-				// @ts-ignore
-				this.contentEl.querySelector("#smm-list-tables").style.display = "none"
-			},200)
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-save-svg-button').onclick =async  ()=>{
-				new Notice('刷新SVG成功',1000)
-				await this.simpleSaveSvg()
-		}
-		// @ts-ignore
-		this.contentEl.querySelector(".smm-tag-delete").onclick = ()=>{
-			// @ts-ignore
-			this.contentEl.querySelector(".smm-tag-input").value = ''
-			// @ts-ignore
-			this.contentEl.querySelector(".smm-tag-input").focus()
-		}
+          },
+          hide: () => {
+            // 清空此回调，不再绑定额外事件
+          }
+        }
+      })
+      setTimeout(async () => {
+        // @ts-ignore
+        this.addEventWithButton()
+        this.outLinkrefresh()
+        // 新增：画布点击时隐藏备注弹窗
+        // 单次绑定画布点击事件
+        this.smm_mindmap.addEventListener('click', (e) => {
+          const tooltip = (window as any).currentTooltip;
+          const mask = (window as any).currentMask;
 
-		// // @ts-ignore
-		// this.mindMap.on("node_icon_mouseenter",(t,i,e,n)=>{
-		// 	// @ts-ignore
-		// 	this.mindMap.on('node_icon_click',(t: { setIcon: (arg0: never[]) => void; })=>{
-		// 		t.setIcon([])
-		// 	})
-		// })
-		this.setUniversalStyle()
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-demostrate-button').onclick =async  ()=>{
-			this.mindMap?.resize()
-			// @ts-ignore
-			this.noResize = true
-			// @ts-ignore
-			this.contentEl.querySelector('.miniMapContainer').style.display = 'none'
-			this.mindMap.demonstrate.enter()
-		}
-		this.mindMap.on('exit_demonstrate',()=>{
-			this.noResize = false
-			this.mindMap?.resize()
-		})
-		this.mindMap.on('demonstrate_jump',()=>{
-			this.mindMap?.resize()
-		})
-		this.setNodeStyle()
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-search-obsidian').addEventListener('input',()=>{
-			// @ts-ignore
-			const files = this.app.vault.getMarkdownFiles();
-			const results: { path: string, name: string }[] = [];
+          if (tooltip?.parentNode) {
+            tooltip.parentNode.removeChild(tooltip);
+            (window as any).currentTooltip = null;
+          }
 
-			for (const file of files) {
-				// @ts-ignore
-				if(file.path.toLowerCase().includes(this.contentEl.querySelector('#smm-search-obsidian').value)){
-					results.push({path:file.path,name:file.name})
-				}
-			}
-			const res = results.map((item)=>
-            `<div class="smm-search-item">
+          if (mask?.parentNode) {
+            mask.parentNode.removeChild(mask);
+            (window as any).currentMask = null;
+          }
+        });
+        // @ts-ignore
+        if (this.app.settings.cartoon) {
+          // @ts-ignore
+          loadingImg.remove()
+        }
+        await this.saveDataIntoFile()
+      }, 500)
+    } catch (e) {
+      setTimeout(() => {
+        try {
+          // @ts-ignore
+          this.mindMap = new MindMap({
+            el: this.contentEl.querySelector(".ob-simple-mindMapContainer"),
+            data: root,
+            layout: layout,
+            theme: theme.template,
+            themeConfig: theme.config,
+            viewData: view,
+            iconList: this.customIcons
+          })
+          setTimeout(async () => {
+            // @ts-ignore
+            this.addEventWithButton()
+            this.outLinkrefresh()
+            // @ts-ignore
+            if (this.app.settings.cartoon) {
+              // @ts-ignore
+              loadingImg.remove()
+            }
+            await this.saveDataIntoFile()
+          }, 500)
+        } catch {
+          return
+        }
+      }, 1000)
+    }
+  }
+  async simpleSaveSvg() {
+    await lock.acquire('resource', async () => {
+      const current = this.currentFile
+      const content = await this.mindMap.getData(true)
+      const svgObj = await this.mindMap.export('svg', false, '')
+      const svgData = svgObj
+      if (current instanceof TFile && this.isLinkFile(current)) {
+        try {
+          clearTimeout(this.saveTimer)
+          // @ts-ignore
+          this.saveTimer = setTimeout(() => {
+            const data = assembleMarkdownText({ metadata: { path: current.path, tags: ['linkMind'], content: JSON.stringify(content) }, svgdata: svgData, linkdata: this.parseData.linkdata })
+            this.file_lock = true
+            this.app.vault.modify(current, data).then(() => {
+              this.file_lock = false
+            })
+          }, 100)
+        } catch (e) {
+          new Notice(e)
+        }
+      }
+    })
+  }
+  public async saveDataIntoFile() {
+    await lock.acquire('resource', async () => {
+      const current = this.currentFile
+      const content = await this.mindMap.getData(true)
+      const svgData = this.parseData.svgdata
+      if (current instanceof TFile && this.isLinkFile(current)) {
+        try {
+
+          clearTimeout(this.saveTimer)
+          // @ts-ignore
+          this.saveTimer = setTimeout(() => {
+            const data = assembleMarkdownText({ metadata: { path: current.path, tags: ['linkMind'], content: JSON.stringify(content) }, svgdata: svgData, linkdata: this.parseData.linkdata })
+            this.file_lock = true
+            this.app.vault.modify(current, data).then(() => {
+              this.file_lock = false
+            })
+          }, 100)
+        } catch (e) {
+          new Notice(e)
+        }
+      }
+    })
+
+  }
+  addEventWithButton() {
+    this.mindMap.on("node_active", (node: any, activeNodeList: any) => {
+      this.node = node
+      this.activeNodeList = activeNodeList
+      this.renderNodeStyle()
+    })
+    this.mindMap.on("view_data_change", async () => {
+      const scale = this.mindMap.view.getTransformData().state.scale
+      // @ts-ignore
+      this.contentEl.querySelector(".smm-zoom-input").value = parseInt((scale * 100)) + "%"
+    })
+
+    this.mindMap.on("data_change", async () => {
+      await this.saveDataIntoFile()
+      this.renderMinimap()
+      this.outLinkrefresh()
+    })
+    this.mindMap.keyCommand.addShortcut('Control+F8', () => {
+      this.mindMap.renderer.textEdit.show({ node: this.node })
+    })
+    this.miap = this.contentEl.querySelector(".miniMapContainer")
+    this.viap = this.contentEl.querySelector(".viewBoxContainer")
+    this.miap.style.display = "none"
+    this.viap.style.display = 'none'
+    this.noResize = false
+    this.app.workspace.on("resize", () => {
+      if (this.noResize) {
+        return
+      }
+      if (!this.mindMap) {
+        return
+      }
+      try {
+        this.mindMap.resize()
+      } catch {
+        // 	莫名其妙的报错
+      }
+    })
+    // @ts-ignore
+    this.mindMap?.resize()
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-createAssociativeLine").onclick = async () => {
+      try {
+        this.mindMap.associativeLine.createLineFromActiveNode()
+      } catch {
+        new Notice("请选择节点，概要无法链接")
+      }
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-addOutLine").onclick = async () => {
+      try {
+        this.mindMap.execCommand('ADD_OUTER_FRAME', [], {})
+      } catch {
+        new Notice("外框添加失败")
+      }
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-GENERALIZATION").onclick = async () => {
+      this.mindMap.execCommand('ADD_GENERALIZATION', { text: '概要' }, true)
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-showMap").onclick = () => {
+      try {
+        if (this.miap.style.display == "none") {
+          this.miap.removeAttribute('style')
+          this.viap.removeAttribute('style')
+          this.renderMinimap()
+        } else {
+          this.miap.style.display = 'none'
+          this.viap.style.display = 'none'
+        }
+      } catch {
+        new Notice("外框添加失败")
+      }
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-addLink-button").onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector("#smm-insertLink").removeAttribute("style")
+    }
+    this.renderLinkInput()
+    this.renderTag()
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-setnote").onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector("#smm-input-note").removeAttribute("style")
+      const pre_note = this.node?.getData('note')
+      if (!pre_note) {
+        return
+      }
+      // @ts-ignore
+      this.contentEl.querySelector(".smm-note-input").value = pre_note !== undefined ? pre_note : ""
+    }
+    // @ts-ignore
+    // 更新字符计数
+    const textarea = document.querySelector('.smm-note-input');
+    const charCount = this.contentEl.querySelector('#char-count');
+    // @ts-ignore
+    textarea.addEventListener('input', () => {
+      // @ts-ignore
+      const count = textarea.value.length;
+      // @ts-ignore
+      charCount.textContent = count;
+      // 限制最大字符数
+      if (count > 1000) {
+        // @ts-ignore
+        textarea.value = textarea.value.substring(0, 1000);
+        // @ts-ignore
+        charCount.textContent = 1000;
+        new Notice("最大字数为1000字", 1200)
+      }
+    });
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-save-note").onclick = () => {
+
+      // @ts-ignore
+      const textarrea_note = this.contentEl.querySelector(".smm-note-input");
+      // @ts-ignore
+      const text = textarrea_note.value;
+
+      this.mindMap.execCommand('SET_NODE_NOTE', this.node, text)
+      // @ts-ignore
+      textarrea_note.value = ""
+      // @ts-ignore
+      this.contentEl.querySelector("#smm-input-note").style.display = "none"
+
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-close-note").onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector("#smm-input-note").style.display = "none"
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-hide-search").onclick = () => {
+      // @ts-ignore
+      if (this.contentEl.querySelector(".smm-search-container").style.display == "none") {
+        // @ts-ignore
+        this.contentEl.querySelector(".smm-search-container").removeAttribute("style")
+      } else {
+        // @ts-ignore
+        this.contentEl.querySelector(".smm-search-container").style.display = "none"
+        // @ts-ignore
+        this.contentEl.querySelector(".smm-search-input").value = ""
+      }
+    }
+
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-formula-button").onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector(".smm-formula-editor").removeAttribute("style")
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-formula-cancel").onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector(".smm-formula-editor").style.display = "none"
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-formula-enter").onclick = () => {
+      // @ts-ignore
+      const latexText = this.contentEl.querySelector(".smm-formula-input").value
+      this.mindMap.execCommand('INSERT_FORMULA', latexText, this.activeNodeList)
+      // @ts-ignore
+      this.contentEl.querySelector(".smm-formula-editor").style.display = "none"
+    }
+    // @ts-ignore
+    this.contentEl.querySelector(".smm-zoom-input").onclick = () => {
+      this.mindMap.view.reset();
+      // @ts-ignore
+      this.contentEl.querySelector(".smm-zoom-input").value = "100%"
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-enlarge-button").onclick = () => {
+      this.mindMap.view.enlarge();
+      // @ts-ignore
+      const scale = this.contentEl.querySelector(".smm-zoom-input").value;
+      const num = parseInt(scale.split("%")[0]) + 25
+      // @ts-ignore
+      this.contentEl.querySelector(".smm-zoom-input").value = num + "%"
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-narrow-button").onclick = () => {
+      this.mindMap.view.narrow();
+
+      // @ts-ignore
+      const scale = this.contentEl.querySelector(".smm-zoom-input").value;
+      const num = parseInt(scale.split("%")[0]) - 25
+      // @ts-ignore
+      this.contentEl.querySelector(".smm-zoom-input").value = num + "%"
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-center-button").onclick = () => {
+      this.mindMap.view.fit();
+    }
+    // @ts-ignore
+    this.mindMap.on('back_forward', (index, len) => {
+      this.isStart = index <= 0
+      this.isEnd = index >= len - 1
+    })
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-back").onclick = () => {
+      if (this.isStart) {
+        new Notice("当前处于历史记录最开始", 3000)
+      } else {
+        this.mindMap.execCommand('BACK')
+      }
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-forward").onclick = () => {
+      if (this.isEnd) {
+        new Notice("当前是最新历史记录", 3000)
+      } else {
+        this.mindMap.execCommand('FORWARD')
+      }
+    }
+    // @ts-ignore
+    this.contentEl.querySelector(".smm-search-btn").onclick = () => {
+      // @ts-ignore
+      this.mindMap.search.search(this.contentEl.querySelector("#searchInput").value, () => {
+        // @ts-ignore
+        this.contentEl.querySelector("#searchInput").focus()
+      })
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#searchInput").onkeyup = (event) => {
+      event.preventDefault();
+      if (event.keyCode === 13) {
+        // @ts-ignore
+        this.mindMap.search.search(this.contentEl.querySelector("#searchInput").value, () => {
+          // @ts-ignore
+          this.contentEl.querySelector("#searchInput").focus()
+        })
+      }
+      if (event.keyCode === 27) {
+        // @ts-ignore
+        this.contentEl.querySelector(".smm-search-container").style.display = "none"
+      }
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-insert-node").onclick = () => {
+      this.mindMap.execCommand('INSERT_CHILD_NODE')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-delete-node").onclick = () => {
+      this.mindMap.execCommand('REMOVE_NODE')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-panel-button").onclick = () => {
+      const panel = this.contentEl.querySelector("#smm-panel-container")
+      // @ts-ignore
+      if (panel.style.display == "none") {
+        // @ts-ignore
+        panel.removeAttribute("style")
+      } else {
+        // @ts-ignore
+        panel.style.display = "none"
+      }
+    }
+    this.bandOnPanel()
+    this.getTheme()
+    const allTheme = this.contentEl.querySelectorAll(".smm-theme-card")
+    // @ts-ignore
+    for (const theme of allTheme) {
+      theme.onclick = () => {
+        const themeName = theme.getAttribute("themeCal")
+        this.mindMap.setThemeConfig({})
+        this.mindMap.setTheme(themeName, false)
+        this.mindMap.emit('data_change')
+      }
+    }
+    const allStructure = this.contentEl.querySelectorAll(".smm-structure-card")
+    // @ts-ignore
+    for (const structure of allStructure) {
+      structure.onclick = () => {
+        const structureName = structure.getAttribute("structure-cal")
+        this.mindMap.setLayout(structureName)
+        this.mindMap.emit('data_change')
+      }
+    }
+    this.upload_Image()
+    this.renderIcons()
+    // @ts-ignore
+    for (const ic of this.contentEl.querySelectorAll(".smm-imgtag-icon-card")) {
+      ic.onclick = () => {
+        // @ts-ignore
+        const imgtag = ic.getAttribute("destiny")
+        for (const anode of this.activeNodeList) {
+          anode.setIcon([imgtag])
+        }
+      }
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-list-table").addEventListener('mouseenter', () => {
+      const list = this.contentEl.querySelector("#smm-list-tables")
+      // @ts-ignore
+      list.removeAttribute('style')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-exit-button-panel').onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-panel-container').style.display = "none"
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-list-tables").addEventListener("mouseleave", () => {
+      setTimeout(() => {
+        // @ts-ignore
+        this.contentEl.querySelector("#smm-list-tables").style.display = "none"
+      }, 200)
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-save-svg-button').onclick = async () => {
+      new Notice('刷新SVG成功', 1000)
+      await this.simpleSaveSvg()
+    }
+    // @ts-ignore
+    this.contentEl.querySelector(".smm-tag-delete").onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector(".smm-tag-input").value = ''
+      // @ts-ignore
+      this.contentEl.querySelector(".smm-tag-input").focus()
+    }
+
+    // // @ts-ignore
+    // this.mindMap.on("node_icon_mouseenter",(t,i,e,n)=>{
+    // 	// @ts-ignore
+    // 	this.mindMap.on('node_icon_click',(t: { setIcon: (arg0: never[]) => void; })=>{
+    // 		t.setIcon([])
+    // 	})
+    // })
+    this.setUniversalStyle()
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-demostrate-button').onclick = async () => {
+      this.mindMap?.resize()
+      // @ts-ignore
+      this.noResize = true
+      // @ts-ignore
+      this.contentEl.querySelector('.miniMapContainer').style.display = 'none'
+      this.mindMap.demonstrate.enter()
+    }
+    this.mindMap.on('exit_demonstrate', () => {
+      this.noResize = false
+      this.mindMap?.resize()
+    })
+    this.mindMap.on('demonstrate_jump', () => {
+      this.mindMap?.resize()
+    })
+    this.setNodeStyle()
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-search-obsidian').addEventListener('input', () => {
+      // @ts-ignore
+      const files = this.app.vault.getMarkdownFiles();
+      const results: { path: string, name: string }[] = [];
+
+      for (const file of files) {
+        // @ts-ignore
+        if (file.path.toLowerCase().includes(this.contentEl.querySelector('#smm-search-obsidian').value)) {
+          results.push({ path: file.path, name: file.name })
+        }
+      }
+      const res = results.map((item) =>
+        `<div class="smm-search-item">
                 <span class="smm-search-item-icon">
                     <svg viewBox="0 0 24 24" width="16" height="16">
                         <path d="M19,19H5V5h7V3H5C3.9,3,3,3.9,3,5v14c0,1.1,0.9,2,2,2h14C20.1,21,21,20.1,21,19z"/>
@@ -704,1711 +833,1711 @@ export class SMMView extends TextFileView {
                 <div class="smm-search-item-title">${item.name}</div>
                 <div class="smm-search-item-path">${item.path}</div>
             </div>`).join('')
-			// @ts-ignore
-			this.contentEl.querySelector('#search-results').innerHTML = res
-			setTimeout(()=>{
-				this.contentEl.querySelectorAll(".smm-search-item").forEach(item=>{
-					// @ts-ignore
-					item.onclick = ()=>{
-						// @ts-ignore
-						const file = this.app.vault.getAbstractFileByPath(item.children[2].innerText)
-						if(!file){
-							new Notice('插入内链失败',3000)
-							return
-						}
-						const linkText = this.app.fileManager.generateMarkdownLink(
-							// @ts-ignore
-							file,           // 目标文件
-							this.currentFile?.path || '', // 当前文件路径（用于相对路径）
-							'',                   // 可选：链接显示文本（留空则使用文件名）
-							file.name                 // 是否使用标题作为链接文本
-						);
-						// @ts-ignore
-						this.activeNodeList.forEach(node=>{
-							// @ts-ignore
-							const LT = node.getData('hyperlinkTitle')
-							// @ts-ignore
-							const index = this.parseData.linkdata.indexOf(LT);
-							if (index !== -1) {
-								this.parseData.linkdata.splice(index,1);
-							}
-						})
-						// @ts-ignore
-						this.parseData.linkdata.push(linkText)
-						// @ts-ignore
-						const localUrl = getInternalUrl(file);
-						// @ts-ignore
-						this.activeNodeList.forEach(node=>{
-							// @ts-ignore
-							node.setHyperlink(localUrl, linkText)
-						})
-						// @ts-ignore
-						this.contentEl.querySelector('#smm-insertLink').style.display = 'none'
-					}
-				})
-			},200)
-			const app = this.app
-			function getInternalUrl(file: TFile) {
-				// 编码文件名和路径，避免特殊字符问题
-				const encodedPath = encodeURIComponent(file.path);
-				return `obsidian://open? Vault=${encodeURIComponent(app.vault.getName())}&file=${encodedPath}`;
-			}
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-import-md').onclick = ()=>{
-			this.readFileByBrowser().then(async obj => {
-				if (obj) {
-					// @ts-ignore
-					this.mindMap.setData(await markdown.transformMarkdownTo(obj.content))
-				} else {
-					new Notice('操作取消或文件读取失败');
-				}
-			})
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-import-xmind').onclick = ()=>{
+      // @ts-ignore
+      this.contentEl.querySelector('#search-results').innerHTML = res
+      setTimeout(() => {
+        this.contentEl.querySelectorAll(".smm-search-item").forEach(item => {
+          // @ts-ignore
+          item.onclick = () => {
+            // @ts-ignore
+            const file = this.app.vault.getAbstractFileByPath(item.children[2].innerText)
+            if (!file) {
+              new Notice('插入内链失败', 3000)
+              return
+            }
+            const linkText = this.app.fileManager.generateMarkdownLink(
+              // @ts-ignore
+              file,           // 目标文件
+              this.currentFile?.path || '', // 当前文件路径（用于相对路径）
+              '',                   // 可选：链接显示文本（留空则使用文件名）
+              file.name                 // 是否使用标题作为链接文本
+            );
+            // @ts-ignore
+            this.activeNodeList.forEach(node => {
+              // @ts-ignore
+              const LT = node.getData('hyperlinkTitle')
+              // @ts-ignore
+              const index = this.parseData.linkdata.indexOf(LT);
+              if (index !== -1) {
+                this.parseData.linkdata.splice(index, 1);
+              }
+            })
+            // @ts-ignore
+            this.parseData.linkdata.push(linkText)
+            // @ts-ignore
+            const localUrl = getInternalUrl(file);
+            // @ts-ignore
+            this.activeNodeList.forEach(node => {
+              // @ts-ignore
+              node.setHyperlink(localUrl, linkText)
+            })
+            // @ts-ignore
+            this.contentEl.querySelector('#smm-insertLink').style.display = 'none'
+          }
+        })
+      }, 200)
+      const app = this.app
+      function getInternalUrl(file: TFile) {
+        // 编码文件名和路径，避免特殊字符问题
+        const encodedPath = encodeURIComponent(file.path);
+        return `obsidian://open? Vault=${encodeURIComponent(app.vault.getName())}&file=${encodedPath}`;
+      }
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-import-md').onclick = () => {
+      this.readFileByBrowser().then(async obj => {
+        if (obj) {
+          // @ts-ignore
+          this.mindMap.setData(await markdown.transformMarkdownTo(obj.content))
+        } else {
+          new Notice('操作取消或文件读取失败');
+        }
+      })
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-import-xmind').onclick = () => {
 
-			this.readFileByBrowser().then(async obj => {
-				if (obj) {
-					// @ts-ignore
-					this.mindMap.setData(await xmind.parseXmindFile(obj.file,async (list) => {
-						if (list.length > 1) {
-							new Notice('当前文件具有多个画布，请不要关闭，正在为您导入', 3000)
-							for(let i=1; i < list.length; i++) {
-								const {vault} = this.app;
-								const date = new Date();
-								const formattedDate = moment(date).format('YYYY-MM-DD-HH-mm-ss');
-								// @ts-ignore
-								const fileName = `${this.app.settings.myInputFolderPath}/SMM-${formattedDate}.smm`;
-								const fileContent = `${list[i]}`
-								try {
-									// 检查文件是否已存在
-									const existingFile = vault.getAbstractFileByPath(fileName);
-									if (existingFile) {
-										new Notice('文件已经存在', 3000);
-									} else {
-										// 创建新文件
-										await vault.create(fileName, fileContent);
-										await this.app.workspace.openLinkText(fileName, '', true);
-									}
-								} catch (error) {
-									new Notice('创建SMM文件失败' + error, 3000);
-								}
-							}
-						}
-					}))
-				} else {
-					new Notice('操作取消或文件读取失败');
-				}
-			})
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-export-svg').onclick = async () => {
-			await this.mindMap.export('svg', true, '未命名')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-export-md').onclick = ()=>{
-			this.mindMap.export('md', true, '未命名')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-export-png').onclick = ()=>{
-			this.mindMap.export('png', true, '未命名')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-export-xmind').onclick = ()=>{
-			this.mindMap.export('xmind', true, '未命名')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-export-pdf').onclick = ()=>{
-			this.mindMap.export('pdf', true, '未命名')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-export-txt').onclick = ()=>{
-			this.mindMap.export('txt', true, '未命名')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-if-water').addEventListener('change', async ()=>{
-			// @ts-ignore
-			if(this.contentEl.querySelector('#smm-if-water').checked){
-				this.mindMap.watermark.updateWatermark({
-					// @ts-ignore
-					text: this.app.settings.myInputWater,
-					lineSpacing: 50,
-					textSpacing: 50,
-					angle: 45,
-					textStyle: {
-						color: '#73D8FF',
-						opacity: 1,
-						fontSize: 12
-					}
-				})
-			}else{
-				this.mindMap.watermark.updateWatermark({
-					// @ts-ignore
-					text: '',
-					lineSpacing: 50,
-					textSpacing: 50,
-					angle: 45,
-					textStyle: {
-						color: '#73D8FF',
-						opacity: 1,
-						fontSize: 12
-					}
-				})
-			}
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-clear-s').onclick  = ()=>{
-			this.mindMap.painter.startPainter()
-		}
-		// @ts-ignore
-		let mousedownX = 0
-		let mousedownY = 0
-		let isMousedown = false
-		this.mindMap.on('svg_mousedown', (e: { which: number; clientX: number; clientY: number; }) => {
-			// 如果不是右键点击直接返回
-			if (e.which !== 3) {
-				return
-			}
-			mousedownX = e.clientX
-			mousedownY = e.clientY
-			isMousedown  = true
-		})
-		this.mindMap.on('node_contextmenu', (e: { clientX: number; clientY: number; }, node: any) => {
-			const menu = this.contentEl.querySelector('#contextMenu-node')
-			const left = node.getRectInSvg().left
-			const top = node.getRectInSvg().top
+      this.readFileByBrowser().then(async obj => {
+        if (obj) {
+          // @ts-ignore
+          this.mindMap.setData(await xmind.parseXmindFile(obj.file, async (list) => {
+            if (list.length > 1) {
+              new Notice('当前文件具有多个画布，请不要关闭，正在为您导入', 3000)
+              for (let i = 1; i < list.length; i++) {
+                const { vault } = this.app;
+                const date = new Date();
+                const formattedDate = moment(date).format('YYYY-MM-DD-HH-mm-ss');
+                // @ts-ignore
+                const fileName = `${this.app.settings.myInputFolderPath}/SMM-${formattedDate}.smm`;
+                const fileContent = `${list[i]}`
+                try {
+                  // 检查文件是否已存在
+                  const existingFile = vault.getAbstractFileByPath(fileName);
+                  if (existingFile) {
+                    new Notice('文件已经存在', 3000);
+                  } else {
+                    // 创建新文件
+                    await vault.create(fileName, fileContent);
+                    await this.app.workspace.openLinkText(fileName, '', true);
+                  }
+                } catch (error) {
+                  new Notice('创建SMM文件失败' + error, 3000);
+                }
+              }
+            }
+          }))
+        } else {
+          new Notice('操作取消或文件读取失败');
+        }
+      })
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-export-svg').onclick = async () => {
+      await this.mindMap.export('svg', true, '未命名')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-export-md').onclick = () => {
+      this.mindMap.export('md', true, '未命名')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-export-png').onclick = () => {
+      this.mindMap.export('png', true, '未命名')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-export-xmind').onclick = () => {
+      this.mindMap.export('xmind', true, '未命名')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-export-pdf').onclick = () => {
+      this.mindMap.export('pdf', true, '未命名')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-export-txt').onclick = () => {
+      this.mindMap.export('txt', true, '未命名')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-if-water').addEventListener('change', async () => {
+      // @ts-ignore
+      if (this.contentEl.querySelector('#smm-if-water').checked) {
+        this.mindMap.watermark.updateWatermark({
+          // @ts-ignore
+          text: this.app.settings.myInputWater,
+          lineSpacing: 50,
+          textSpacing: 50,
+          angle: 45,
+          textStyle: {
+            color: '#73D8FF',
+            opacity: 1,
+            fontSize: 12
+          }
+        })
+      } else {
+        this.mindMap.watermark.updateWatermark({
+          // @ts-ignore
+          text: '',
+          lineSpacing: 50,
+          textSpacing: 50,
+          angle: 45,
+          textStyle: {
+            color: '#73D8FF',
+            opacity: 1,
+            fontSize: 12
+          }
+        })
+      }
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-clear-s').onclick = () => {
+      this.mindMap.painter.startPainter()
+    }
+    // @ts-ignore
+    let mousedownX = 0
+    let mousedownY = 0
+    let isMousedown = false
+    this.mindMap.on('svg_mousedown', (e: { which: number; clientX: number; clientY: number; }) => {
+      // 如果不是右键点击直接返回
+      if (e.which !== 3) {
+        return
+      }
+      mousedownX = e.clientX
+      mousedownY = e.clientY
+      isMousedown = true
+    })
+    this.mindMap.on('node_contextmenu', (e: { clientX: number; clientY: number; }, node: any) => {
+      const menu = this.contentEl.querySelector('#contextMenu-node')
+      const left = node.getRectInSvg().left
+      const top = node.getRectInSvg().top
 
-			const pwidth = this.mindMap.el.offsetWidth
-			const pheight = this.mindMap.el.offsetHeight
-			// @ts-ignore
-			const width = menu.offsetWidth
-			// @ts-ignore
-			const height = menu.offsetHeight
-			// @ts-ignore
-			if(pwidth - left > width && pheight - top > height){
-				// @ts-ignore
-				menu.style.left = left+50+'px'
-				// @ts-ignore
-				menu.style.top = top +25+'px'
-			}
-			// @ts-ignore
-			if(pwidth - left < width){
-				// @ts-ignore
-				menu.style.left = left - width -50+'px'
-				// @ts-ignore
-				menu.style.top = top +25+'px'
-			}
-			// @ts-ignore
-			if(pheight - top < height){
-				// @ts-ignore
-				menu.style.left = left +50+'px'
-				// @ts-ignore
-				menu.style.top = top - height- 25+'px'
-			}
+      const pwidth = this.mindMap.el.offsetWidth
+      const pheight = this.mindMap.el.offsetHeight
+      // @ts-ignore
+      const width = menu.offsetWidth
+      // @ts-ignore
+      const height = menu.offsetHeight
+      // @ts-ignore
+      if (pwidth - left > width && pheight - top > height) {
+        // @ts-ignore
+        menu.style.left = left + 50 + 'px'
+        // @ts-ignore
+        menu.style.top = top + 25 + 'px'
+      }
+      // @ts-ignore
+      if (pwidth - left < width) {
+        // @ts-ignore
+        menu.style.left = left - width - 50 + 'px'
+        // @ts-ignore
+        menu.style.top = top + 25 + 'px'
+      }
+      // @ts-ignore
+      if (pheight - top < height) {
+        // @ts-ignore
+        menu.style.left = left + 50 + 'px'
+        // @ts-ignore
+        menu.style.top = top - height - 25 + 'px'
+      }
 
-			// @ts-ignore
-			this.contentEl.querySelector('#contextMenu').classList.remove('visible');
-			// @ts-ignore
-			menu.classList.add('visible');
-		})
-		this.mindMap.on('mouseup', (e: { clientX: number; clientY: number; }) => {
-			if (!isMousedown) {
-				// @ts-ignore
-				this.contentEl.querySelector('.smm--right-menu-context').classList.remove('visible');
-				return
-			}
-			isMousedown = false
-			// 如果鼠标松开和按下的距离大于3，则不认为是点击事件
-			if (
-				Math.abs(mousedownX - e.clientX) > 3 ||
-				Math.abs(mousedownY - e.clientY) > 3
-			) {
-				return
-			}
-			const menu = this.contentEl.querySelector('#contextMenu')
-			const pwidth = this.mindMap.el.offsetWidth
-			const pheight = this.mindMap.el.offsetHeight
-			// @ts-ignore
-			const width = menu.offsetWidth
-			// @ts-ignore
-			const height = menu.offsetHeight
-			// @ts-ignore
-			if(pwidth - e.offsetX > width && pheight - e.offsetY > height){
-				// @ts-ignore
-				menu.style.left = e.offsetX+10+'px'
-				// @ts-ignore
-				menu.style.top = e.offsetY +10+'px'
-			}
-			// @ts-ignore
-			if(pwidth - e.offsetX < width){
-				// @ts-ignore
-				menu.style.left = e.offsetX - width -10+'px'
-				// @ts-ignore
-				menu.style.top = e.offsetY +10+'px'
-			}
-			// @ts-ignore
-			if(pheight - e.offsetY < height){
-				// @ts-ignore
-				menu.style.left = e.offsetX +10+'px'
-				// @ts-ignore
-				menu.style.top = e.offsetY - height- 10+'px'
-			}
-			// @ts-ignore
-			if(this.contentEl.querySelector('#smm-panel-container')?.style?.display == 'none'){
-				// @ts-ignore
-				this.contentEl.querySelector('#smm-open-panel-span').innerHTML = '打开侧边栏'
-			}else{
-				// @ts-ignore
-				this.contentEl.querySelector('#smm-open-panel-span').innerHTML = '关闭侧边栏'
-			}
-			// @ts-ignore
-			this.contentEl.querySelector('#contextMenu-node').classList.remove('visible');
-			// @ts-ignore
-			menu.classList.add('visible');
+      // @ts-ignore
+      this.contentEl.querySelector('#contextMenu').classList.remove('visible');
+      // @ts-ignore
+      menu.classList.add('visible');
+    })
+    this.mindMap.on('mouseup', (e: { clientX: number; clientY: number; }) => {
+      if (!isMousedown) {
+        // @ts-ignore
+        this.contentEl.querySelector('.smm--right-menu-context').classList.remove('visible');
+        return
+      }
+      isMousedown = false
+      // 如果鼠标松开和按下的距离大于3，则不认为是点击事件
+      if (
+        Math.abs(mousedownX - e.clientX) > 3 ||
+        Math.abs(mousedownY - e.clientY) > 3
+      ) {
+        return
+      }
+      const menu = this.contentEl.querySelector('#contextMenu')
+      const pwidth = this.mindMap.el.offsetWidth
+      const pheight = this.mindMap.el.offsetHeight
+      // @ts-ignore
+      const width = menu.offsetWidth
+      // @ts-ignore
+      const height = menu.offsetHeight
+      // @ts-ignore
+      if (pwidth - e.offsetX > width && pheight - e.offsetY > height) {
+        // @ts-ignore
+        menu.style.left = e.offsetX + 10 + 'px'
+        // @ts-ignore
+        menu.style.top = e.offsetY + 10 + 'px'
+      }
+      // @ts-ignore
+      if (pwidth - e.offsetX < width) {
+        // @ts-ignore
+        menu.style.left = e.offsetX - width - 10 + 'px'
+        // @ts-ignore
+        menu.style.top = e.offsetY + 10 + 'px'
+      }
+      // @ts-ignore
+      if (pheight - e.offsetY < height) {
+        // @ts-ignore
+        menu.style.left = e.offsetX + 10 + 'px'
+        // @ts-ignore
+        menu.style.top = e.offsetY - height - 10 + 'px'
+      }
+      // @ts-ignore
+      if (this.contentEl.querySelector('#smm-panel-container')?.style?.display == 'none') {
+        // @ts-ignore
+        this.contentEl.querySelector('#smm-open-panel-span').innerHTML = '打开侧边栏'
+      } else {
+        // @ts-ignore
+        this.contentEl.querySelector('#smm-open-panel-span').innerHTML = '关闭侧边栏'
+      }
+      // @ts-ignore
+      this.contentEl.querySelector('#contextMenu-node').classList.remove('visible');
+      // @ts-ignore
+      menu.classList.add('visible');
 
-		})
-		const hide = () => {
-			// @ts-ignore
-			this.contentEl.querySelector('#contextMenu').classList.remove('visible');
-			// @ts-ignore
-			this.contentEl.querySelector('#contextMenu-node').classList.remove('visible');
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-list-tables').style.display = 'none'
-			// @ts-ignore
-			this.contentEl.querySelector('#smmFloatButtonGroup').classList.remove('active')
-			// @ts-ignore
-			this.contentEl.querySelector('#smmFloatDropdownMenu').classList.remove('active')
-			// @ts-ignore
-			this.contentEl.querySelector('#smmFloatDropdownMenu2').classList.remove('active')
-		}
-		this.mindMap.on('node_click', hide)
-		this.mindMap.on('draw_click', hide)
-		this.mindMap.on('expand_btn_click', hide)
-		// @ts-ignore
-		this.contentEl.querySelector('#contextMenu-node').addEventListener('click', hide)
-		// @ts-ignore
-		this.contentEl.querySelector('#contextMenu').addEventListener('click', hide)
-		let opening_chan = false
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-open-panel').onclick = ()=>{
-			if(opening_chan){
-				new Notice('请先退出禅模式')
-				return
-			}
-			// @ts-ignore
-			if(this.contentEl.querySelector('#smm-panel-container')?.style?.display == 'none'){
-				// @ts-ignore
-				this.contentEl.querySelector('#smm-panel-container').removeAttribute('style')
-			}else{
-				// @ts-ignore
-				this.contentEl.querySelector('#smm-panel-container').style.display = 'none'
-			}
+    })
+    const hide = () => {
+      // @ts-ignore
+      this.contentEl.querySelector('#contextMenu').classList.remove('visible');
+      // @ts-ignore
+      this.contentEl.querySelector('#contextMenu-node').classList.remove('visible');
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-list-tables').style.display = 'none'
+      // @ts-ignore
+      this.contentEl.querySelector('#smmFloatButtonGroup').classList.remove('active')
+      // @ts-ignore
+      this.contentEl.querySelector('#smmFloatDropdownMenu').classList.remove('active')
+      // @ts-ignore
+      this.contentEl.querySelector('#smmFloatDropdownMenu2').classList.remove('active')
+    }
+    this.mindMap.on('node_click', hide)
+    this.mindMap.on('draw_click', hide)
+    this.mindMap.on('expand_btn_click', hide)
+    // @ts-ignore
+    this.contentEl.querySelector('#contextMenu-node').addEventListener('click', hide)
+    // @ts-ignore
+    this.contentEl.querySelector('#contextMenu').addEventListener('click', hide)
+    let opening_chan = false
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-open-panel').onclick = () => {
+      if (opening_chan) {
+        new Notice('请先退出禅模式')
+        return
+      }
+      // @ts-ignore
+      if (this.contentEl.querySelector('#smm-panel-container')?.style?.display == 'none') {
+        // @ts-ignore
+        this.contentEl.querySelector('#smm-panel-container').removeAttribute('style')
+      } else {
+        // @ts-ignore
+        this.contentEl.querySelector('#smm-panel-container').style.display = 'none'
+      }
 
-		}
+    }
 
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-quiet-mode').onclick = ()=>{
-			if(!opening_chan) {
-				// eslint-disable-next-line @typescript-eslint/no-unused-vars
-				opening_chan = true
-				// @ts-ignore
-				this.contentEl.querySelector('.miniMapContainer').style.display = 'none'
-				// @ts-ignore
-				this.contentEl.querySelector('.smm-toolbar').style.display = 'none'
-				// @ts-ignore
-				this.contentEl.querySelector('#smm-panel-container').style.display = 'none'
-				// @ts-ignore
-				this.contentEl.querySelector('#smm-SL').style.display = 'none'
-				// @ts-ignore
-				this.contentEl.querySelector('#smm-chan-text').innerHTML = '关闭禅模式'
-			}else{
-				// eslint-disable-next-line @typescript-eslint/no-unused-vars
-				opening_chan = false
-				// @ts-ignore
-				this.contentEl.querySelector('.smm-toolbar').removeAttribute('style')
-				// @ts-ignore
-				this.contentEl.querySelector('#smm-SL').removeAttribute('style')
-				// @ts-ignore
-				this.contentEl.querySelector('#smm-chan-text').innerHTML = '开启禅模式'
-			}
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-copy-node").onclick = ()=>{
-			this.mindMap.renderer.copy()
-		}
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-quiet-mode').onclick = () => {
+      if (!opening_chan) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        opening_chan = true
+        // @ts-ignore
+        this.contentEl.querySelector('.miniMapContainer').style.display = 'none'
+        // @ts-ignore
+        this.contentEl.querySelector('.smm-toolbar').style.display = 'none'
+        // @ts-ignore
+        this.contentEl.querySelector('#smm-panel-container').style.display = 'none'
+        // @ts-ignore
+        this.contentEl.querySelector('#smm-SL').style.display = 'none'
+        // @ts-ignore
+        this.contentEl.querySelector('#smm-chan-text').innerHTML = '关闭禅模式'
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        opening_chan = false
+        // @ts-ignore
+        this.contentEl.querySelector('.smm-toolbar').removeAttribute('style')
+        // @ts-ignore
+        this.contentEl.querySelector('#smm-SL').removeAttribute('style')
+        // @ts-ignore
+        this.contentEl.querySelector('#smm-chan-text').innerHTML = '开启禅模式'
+      }
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-copy-node").onclick = () => {
+      this.mindMap.renderer.copy()
+    }
 
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-cut-node").onclick = ()=>{
-			this.mindMap.renderer.cut()
-		}
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-cut-node").onclick = () => {
+      this.mindMap.renderer.cut()
+    }
 
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-paste-node").onclick = ()=>{
-			this.mindMap.renderer.paste()
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-collapse-allnode').onclick = ()=>{
-				this.mindMap.execCommand('EXPAND_ALL')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-uncollapse-allnode').onclick = ()=>{
-			this.mindMap.execCommand('UNEXPAND_ALL')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-up-node').onclick = ()=>{
-			this.mindMap.execCommand('UP_NODE')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-down-node').onclick = ()=>{
-			this.mindMap.execCommand('DOWN_NODE')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-collapse-one-allnode').onclick = ()=>{
-			this.mindMap.execCommand('UNEXPAND_TO_LEVEL',1)
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-collapse-two-allnode').onclick = ()=>{
-			this.mindMap.execCommand('UNEXPAND_TO_LEVEL',2)
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-collapse-three-allnode').onclick = ()=>{
-			this.mindMap.execCommand('UNEXPAND_TO_LEVEL',3)
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-fit-window').onclick = ()=>{
-			this.mindMap.view.fit()
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-delete-icon').onclick = ()=>{
-			this.node.setIcon([])
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-delete-hyperlink').onclick = ()=>{
-			// @ts-ignore
-			const LT = this.node.getData('hyperlinkTitle')
-			// @ts-ignore
-			const index = this.parseData.linkdata.indexOf(LT);
-			if (index !== -1) {
-				this.parseData.linkdata.splice(index,1);
-			}
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-paste-node").onclick = () => {
+      this.mindMap.renderer.paste()
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-collapse-allnode').onclick = () => {
+      this.mindMap.execCommand('EXPAND_ALL')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-uncollapse-allnode').onclick = () => {
+      this.mindMap.execCommand('UNEXPAND_ALL')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-up-node').onclick = () => {
+      this.mindMap.execCommand('UP_NODE')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-down-node').onclick = () => {
+      this.mindMap.execCommand('DOWN_NODE')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-collapse-one-allnode').onclick = () => {
+      this.mindMap.execCommand('UNEXPAND_TO_LEVEL', 1)
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-collapse-two-allnode').onclick = () => {
+      this.mindMap.execCommand('UNEXPAND_TO_LEVEL', 2)
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-collapse-three-allnode').onclick = () => {
+      this.mindMap.execCommand('UNEXPAND_TO_LEVEL', 3)
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-fit-window').onclick = () => {
+      this.mindMap.view.fit()
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-delete-icon').onclick = () => {
+      this.node.setIcon([])
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-delete-hyperlink').onclick = () => {
+      // @ts-ignore
+      const LT = this.node.getData('hyperlinkTitle')
+      // @ts-ignore
+      const index = this.parseData.linkdata.indexOf(LT);
+      if (index !== -1) {
+        this.parseData.linkdata.splice(index, 1);
+      }
 
-			this.node.setHyperlink('','')
-		}
+      this.node.setHyperlink('', '')
+    }
 
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-INSERT_NODE').onclick = ()=>{
-			this.mindMap.execCommand('INSERT_NODE')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-INSERT_CHILD_NODE').onclick = ()=>{
-			this.mindMap.execCommand('INSERT_CHILD_NODE')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-INSERT_PARENT_NODE').onclick = ()=>{
-			this.mindMap.execCommand('INSERT_PARENT_NODE')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-REMOVE_NODE').onclick = ()=>{
-			this.mindMap.execCommand('REMOVE_NODE')
-		}
-		// @ts-ignore
-		this.mindMap.on('rich_text_selection_change', (hasRange, rect, formatInfo) => {
-			if(!hasRange){
-				return
-			}
-			const left = this.node.getRectInSvg().left + rect.width/2 + 'px'
-			const top = this.node.getRectInSvg().top - 60+ 'px'
-			const el = this.contentEl.querySelector('#smmFloatButtonGroup')
-			// @ts-ignore
-			el.style.left = left
-			// @ts-ignore
-			el.style.top = top
-			// @ts-ignore
-			el.classList.add('active')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smmFloatButtonGroup').onclick = (e)=>{
-			// hide()
-			e.stopPropagation()
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-float-bold').onclick = ()=>{
-			this.mindMap.richText.formatText({
-				bold: true
-			},false,false)
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-float-italic').onclick = ()=>{
-			this.mindMap.richText.formatText({
-				italic: true
-			},false,false)
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-float-underline').onclick = ()=>{
-			this.mindMap.richText.formatText({
-				underline: true
-			},false,false)
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-float-delete').onclick = ()=>{
-			this.mindMap.richText.formatText({
-				strike: true
-			},false,false)
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-float-clear').onclick = ()=>{
-			this.mindMap.richText.removeFormat()
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smmWordClass').onclick = ()=>{
-			// @ts-ignore
-			this.contentEl.querySelector('#smmFloatDropdownMenu').classList.toggle('active')
-		}
-		// @ts-ignore
-		for(const i of this.contentEl.querySelectorAll('.smm-float-dropdown-item1')){
-			i.onclick = ()=>{
-				this.mindMap.richText.formatText({
-					font: i.innerHTML
-				})
-				// @ts-ignore
-				this.contentEl.querySelector('#smmFloatDropdownMenu').classList.remove('active')
-			}
-		}
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-INSERT_NODE').onclick = () => {
+      this.mindMap.execCommand('INSERT_NODE')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-INSERT_CHILD_NODE').onclick = () => {
+      this.mindMap.execCommand('INSERT_CHILD_NODE')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-INSERT_PARENT_NODE').onclick = () => {
+      this.mindMap.execCommand('INSERT_PARENT_NODE')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-REMOVE_NODE').onclick = () => {
+      this.mindMap.execCommand('REMOVE_NODE')
+    }
+    // @ts-ignore
+    this.mindMap.on('rich_text_selection_change', (hasRange, rect, formatInfo) => {
+      if (!hasRange) {
+        return
+      }
+      const left = this.node.getRectInSvg().left + rect.width / 2 + 'px'
+      const top = this.node.getRectInSvg().top - 60 + 'px'
+      const el = this.contentEl.querySelector('#smmFloatButtonGroup')
+      // @ts-ignore
+      el.style.left = left
+      // @ts-ignore
+      el.style.top = top
+      // @ts-ignore
+      el.classList.add('active')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smmFloatButtonGroup').onclick = (e) => {
+      // hide()
+      e.stopPropagation()
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-float-bold').onclick = () => {
+      this.mindMap.richText.formatText({
+        bold: true
+      }, false, false)
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-float-italic').onclick = () => {
+      this.mindMap.richText.formatText({
+        italic: true
+      }, false, false)
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-float-underline').onclick = () => {
+      this.mindMap.richText.formatText({
+        underline: true
+      }, false, false)
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-float-delete').onclick = () => {
+      this.mindMap.richText.formatText({
+        strike: true
+      }, false, false)
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-float-clear').onclick = () => {
+      this.mindMap.richText.removeFormat()
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smmWordClass').onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector('#smmFloatDropdownMenu').classList.toggle('active')
+    }
+    // @ts-ignore
+    for (const i of this.contentEl.querySelectorAll('.smm-float-dropdown-item1')) {
+      i.onclick = () => {
+        this.mindMap.richText.formatText({
+          font: i.innerHTML
+        })
+        // @ts-ignore
+        this.contentEl.querySelector('#smmFloatDropdownMenu').classList.remove('active')
+      }
+    }
 
-		// @ts-ignore
-		this.contentEl.querySelector('#smmWordSize').onclick = ()=>{
-			// @ts-ignore
-			this.contentEl.querySelector('#smmFloatDropdownMenu2').classList.toggle('active')
-		}
-		// @ts-ignore
-		for(const i of this.contentEl.querySelectorAll('.smm-float-dropdown-item2')){
-			i.onclick = ()=>{
-				this.mindMap.richText.formatText({
-					size: i.innerHTML+'px'
-				})
-				// @ts-ignore
-				this.contentEl.querySelector('#smmFloatDropdownMenu2').classList.remove('active')
-			}
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-word-color').addEventListener('input',()=>{
-			// @ts-ignore
-			this.mindMap.richText.formatText({
-				// @ts-ignore
-				color: this.contentEl.querySelector('#smm-word-color').value
-			})
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-float-bg-color').addEventListener('input',()=>{
-			// @ts-ignore
-			this.mindMap.richText.formatText({
-				// @ts-ignore
-				background: this.contentEl.querySelector('#smm-float-bg-color').value
-			})
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-delete-svg-button').addEventListener('click',async ()=>{
-			await lock.acquire('resource', async () => {
-				const current = this.currentFile
-				const content = await this.mindMap.getData(true)
-				content.svgData = ''
-				if (current instanceof TFile && current.extension == "smm") {
-					try {
-						clearTimeout(this.saveTimer)
-						// @ts-ignore
-						this.saveTimer = setTimeout(() => {
-							this.app.vault.modify(current, JSON.stringify(content)).then(() => {
-								new Notice('清除成功',3000)
-							})
-						}, 100)
-					} catch (e) {
-						new Notice(e)
-					}
-				}
-			})
-		})
-		// this.mindMap.on('hide_text_edit',()=>{
-		// 	this.setSameWidth()
-		// })
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-hightlight').onclick = ()=>{
-			for(const node of this.activeNodeList){
-				node.highlight()
-			}
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-close-hightlight').onclick = ()=>{
-			for(const node of this.activeNodeList){
-				node.closeHighlight()
-			}
-		}
-	}
-	renderMinimap(){
-		// @ts-ignore
-		if (this.miap.style.display == "none"){
-			return
-		}
-		const miniObj = this.mindMap.miniMap.calculationMiniMap("180px","90px")
-		this.viewBoxStyle = miniObj.viewBoxStyle
-		// @ts-ignore
-		miniObj.getImgUrl((miniimage)=>{
-			// @ts-ignore
-			this.miap.innerHTML = `<img src="${miniimage}" width="100%" height="100%" draggable="false"></img>`
-			// @ts-ignore
-			this.miap.style.transform =  `scale(${miniObj.miniMapBoxScale})`
-			// @ts-ignore
-			this.miap.style.left = miniObj.miniMapBoxLeft + 'px'
-			// @ts-ignore
-			this.miap.style.right = miniObj.miniMapBoxRight + 'px'
-		})
-	}
-	//----------------------------------------------------------------------------------
+    // @ts-ignore
+    this.contentEl.querySelector('#smmWordSize').onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector('#smmFloatDropdownMenu2').classList.toggle('active')
+    }
+    // @ts-ignore
+    for (const i of this.contentEl.querySelectorAll('.smm-float-dropdown-item2')) {
+      i.onclick = () => {
+        this.mindMap.richText.formatText({
+          size: i.innerHTML + 'px'
+        })
+        // @ts-ignore
+        this.contentEl.querySelector('#smmFloatDropdownMenu2').classList.remove('active')
+      }
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-word-color').addEventListener('input', () => {
+      // @ts-ignore
+      this.mindMap.richText.formatText({
+        // @ts-ignore
+        color: this.contentEl.querySelector('#smm-word-color').value
+      })
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-float-bg-color').addEventListener('input', () => {
+      // @ts-ignore
+      this.mindMap.richText.formatText({
+        // @ts-ignore
+        background: this.contentEl.querySelector('#smm-float-bg-color').value
+      })
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-delete-svg-button').addEventListener('click', async () => {
+      await lock.acquire('resource', async () => {
+        const current = this.currentFile
+        const content = await this.mindMap.getData(true)
+        content.svgData = ''
+        if (current instanceof TFile && current.extension == "smm") {
+          try {
+            clearTimeout(this.saveTimer)
+            // @ts-ignore
+            this.saveTimer = setTimeout(() => {
+              this.app.vault.modify(current, JSON.stringify(content)).then(() => {
+                new Notice('清除成功', 3000)
+              })
+            }, 100)
+          } catch (e) {
+            new Notice(e)
+          }
+        }
+      })
+    })
+    // this.mindMap.on('hide_text_edit',()=>{
+    // 	this.setSameWidth()
+    // })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-hightlight').onclick = () => {
+      for (const node of this.activeNodeList) {
+        node.highlight()
+      }
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-close-hightlight').onclick = () => {
+      for (const node of this.activeNodeList) {
+        node.closeHighlight()
+      }
+    }
+  }
+  renderMinimap() {
+    // @ts-ignore
+    if (this.miap.style.display == "none") {
+      return
+    }
+    const miniObj = this.mindMap.miniMap.calculationMiniMap("180px", "90px")
+    this.viewBoxStyle = miniObj.viewBoxStyle
+    // @ts-ignore
+    miniObj.getImgUrl((miniimage) => {
+      // @ts-ignore
+      this.miap.innerHTML = `<img src="${miniimage}" width="100%" height="100%" draggable="false"></img>`
+      // @ts-ignore
+      this.miap.style.transform = `scale(${miniObj.miniMapBoxScale})`
+      // @ts-ignore
+      this.miap.style.left = miniObj.miniMapBoxLeft + 'px'
+      // @ts-ignore
+      this.miap.style.right = miniObj.miniMapBoxRight + 'px'
+    })
+  }
+  //----------------------------------------------------------------------------------
   // @ts-ignore
-  setSetting(element){
-	const nav = buttons
-	const navTop = document.createElement("div")
-	navTop.classList.add("smm-navbar-brand")
-	navTop.innerHTML = nav
-	element.appendChild(navTop)
+  setSetting(element) {
+    const nav = buttons
+    const navTop = document.createElement("div")
+    navTop.classList.add("smm-navbar-brand")
+    navTop.innerHTML = nav
+    element.appendChild(navTop)
   }
-  renderLinkInput(){
-	const urlTypeBtn = this.contentEl.querySelector('#url-type');
-	const obsidianTypeBtn = this.contentEl.querySelector('#obsidian-type');
-	const urlInputContainer = this.contentEl.querySelector('#url-input-container');
-	const obsidianInputContainer = this.contentEl.querySelector('#obsidian-input-container');
-	const searchResults = this.contentEl.querySelector('#search-results');
-	// @ts-ignore
-	searchResults.style.display = 'none';
-	// @ts-ignore
-	urlTypeBtn.addEventListener('click', () => {
-	// @ts-ignore
-		urlTypeBtn.classList.add('active');
-	// @ts-ignore
-		obsidianTypeBtn.classList.remove('active');
-	// @ts-ignore
-		urlInputContainer.style.display = 'block';
-	// @ts-ignore
-		obsidianInputContainer.style.display = 'none';
-	// @ts-ignore
-		searchResults.style.display = 'none';
-	});
-	// @ts-ignore
-	this.contentEl.querySelector("#smm-cancel-smm-link").onclick = ()=>{
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-insertLink").style.display = "none";
-	}
-	// @ts-ignore
-	obsidianTypeBtn.addEventListener('click', () => {
-		// @ts-ignore
-		obsidianTypeBtn.classList.add('active');
-		// @ts-ignore
-		urlTypeBtn.classList.remove('active');
-		// @ts-ignore
-		urlInputContainer.style.display = 'none';
-		// @ts-ignore
-		obsidianInputContainer.style.display = 'block';
-		// @ts-ignore
-		searchResults.style.display = 'block';
-	});
-	
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-add-link-button").onclick = ()=>{
-			// @ts-ignore
-			if(urlTypeBtn.classList.contains('active')){
-				// @ts-ignore
-				const link = this.contentEl.querySelector("#smm-url-link").value
-				// @ts-ignore
-				if(link == ''){
-					new Notice("链接不能为空")
-					return
-				}
-				// @ts-ignore
-				const name = this.contentEl.querySelector("#smm-url-name").value
-				for(const anode of this.activeNodeList){
-					// @ts-ignore
-					anode.setHyperlink(link, name)
-				}
+  renderLinkInput() {
+    const urlTypeBtn = this.contentEl.querySelector('#url-type');
+    const obsidianTypeBtn = this.contentEl.querySelector('#obsidian-type');
+    const urlInputContainer = this.contentEl.querySelector('#url-input-container');
+    const obsidianInputContainer = this.contentEl.querySelector('#obsidian-input-container');
+    const searchResults = this.contentEl.querySelector('#search-results');
+    // @ts-ignore
+    searchResults.style.display = 'none';
+    // @ts-ignore
+    urlTypeBtn.addEventListener('click', () => {
+      // @ts-ignore
+      urlTypeBtn.classList.add('active');
+      // @ts-ignore
+      obsidianTypeBtn.classList.remove('active');
+      // @ts-ignore
+      urlInputContainer.style.display = 'block';
+      // @ts-ignore
+      obsidianInputContainer.style.display = 'none';
+      // @ts-ignore
+      searchResults.style.display = 'none';
+    });
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-cancel-smm-link").onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector("#smm-insertLink").style.display = "none";
+    }
+    // @ts-ignore
+    obsidianTypeBtn.addEventListener('click', () => {
+      // @ts-ignore
+      obsidianTypeBtn.classList.add('active');
+      // @ts-ignore
+      urlTypeBtn.classList.remove('active');
+      // @ts-ignore
+      urlInputContainer.style.display = 'none';
+      // @ts-ignore
+      obsidianInputContainer.style.display = 'block';
+      // @ts-ignore
+      searchResults.style.display = 'block';
+    });
 
-			}else{
-			// 	obsidian文件搜索
-			}
-			// @ts-ignore
-			this.contentEl.querySelector("#smm-insertLink").style.display = "none";
-		}
-		
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-add-link-button").onclick = () => {
+      // @ts-ignore
+      if (urlTypeBtn.classList.contains('active')) {
+        // @ts-ignore
+        const link = this.contentEl.querySelector("#smm-url-link").value
+        // @ts-ignore
+        if (link == '') {
+          new Notice("链接不能为空")
+          return
+        }
+        // @ts-ignore
+        const name = this.contentEl.querySelector("#smm-url-name").value
+        for (const anode of this.activeNodeList) {
+          // @ts-ignore
+          anode.setHyperlink(link, name)
+        }
+
+      } else {
+        // 	obsidian文件搜索
+      }
+      // @ts-ignore
+      this.contentEl.querySelector("#smm-insertLink").style.display = "none";
+    }
+
   }
-  renderTag(){
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-tag-button").onclick = ()=>{
-			// @ts-ignore
-			if(this.contentEl.querySelector("#smm-tag-block").style.display == "none"){
-				// @ts-ignore
-				this.contentEl.querySelector("#smm-tag-block").removeAttribute("style");
-				const tagArr = this.node?.getData('tag') || []
-				if(!tagArr){
-					return
-				}
-				for(const tag of tagArr){
-					// @ts-ignore
-					const tagElement = document.createElement('div');
-					tagElement.className = 'smm-tag-item';
-					tagElement.innerHTML = `
+  renderTag() {
+    // @ts-ignore
+    this.contentEl.querySelector("#smm-tag-button").onclick = () => {
+      // @ts-ignore
+      if (this.contentEl.querySelector("#smm-tag-block").style.display == "none") {
+        // @ts-ignore
+        this.contentEl.querySelector("#smm-tag-block").removeAttribute("style");
+        const tagArr = this.node?.getData('tag') || []
+        if (!tagArr) {
+          return
+        }
+        for (const tag of tagArr) {
+          // @ts-ignore
+          const tagElement = document.createElement('div');
+          tagElement.className = 'smm-tag-item';
+          tagElement.innerHTML = `
       				${tag.text}
       				<span class="smm-tag-remove">×</span>
     				`;
 
-					// @ts-ignore
-					this.contentEl.querySelector("#tags-list").appendChild(tagElement);
-				}
-				this.initTagInputEvents()
-			}
-		}
-		// @ts-ignore
-		this.contentEl.querySelector("#save-btn").onclick = ()=>{
-			const tags = this.getTagArray()
-			this.node.setTag(tags)
-			// @ts-ignore
-			this.contentEl.querySelector("#smm-tag-block").style.display = "none"
-			// @ts-ignore
-			this.contentEl.querySelector("#tags-list").innerHTML = ""
+          // @ts-ignore
+          this.contentEl.querySelector("#tags-list").appendChild(tagElement);
+        }
+        this.initTagInputEvents()
+      }
+    }
+    // @ts-ignore
+    this.contentEl.querySelector("#save-btn").onclick = () => {
+      const tags = this.getTagArray()
+      this.node.setTag(tags)
+      // @ts-ignore
+      this.contentEl.querySelector("#smm-tag-block").style.display = "none"
+      // @ts-ignore
+      this.contentEl.querySelector("#tags-list").innerHTML = ""
 
-		}
+    }
 
-	// @ts-ignore
-	this.contentEl.querySelector("#exit-btn").onclick = ()=>{
-		// @ts-ignore
-		this.contentEl.querySelector("#smm-tag-block").style.display = "none"
-		// @ts-ignore
-		this.contentEl.querySelector("#tags-list").innerHTML = ""
-	}
+    // @ts-ignore
+    this.contentEl.querySelector("#exit-btn").onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector("#smm-tag-block").style.display = "none"
+      // @ts-ignore
+      this.contentEl.querySelector("#tags-list").innerHTML = ""
+    }
   }
-	initTagInputEvents() {
-		// 获取DOM元素
-		const input = this.contentEl.querySelector('#smm-tag-block .smm-tag-input') as HTMLInputElement;
-		const addBtn = this.contentEl.querySelector('#add-tag-btn') as HTMLButtonElement;
-		const tagsList = this.contentEl.querySelector('#tags-list') as HTMLElement;
+  initTagInputEvents() {
+    // 获取DOM元素
+    const input = this.contentEl.querySelector('#smm-tag-block .smm-tag-input') as HTMLInputElement;
+    const addBtn = this.contentEl.querySelector('#add-tag-btn') as HTMLButtonElement;
+    const tagsList = this.contentEl.querySelector('#tags-list') as HTMLElement;
 
-		// 事件注册：输入框Enter键添加标签
-		// @ts-ignore
-		this.contentEl.querySelector("#add-tag-btn").onclick = ()=> {
-			addTag(input.value.trim());
-			input.value = ''; // 清空输入框
-			addBtn.onclick =  () => {
-				addTag(input.value.trim());
-				input.value = ''; // 清空输入框
-			}
-		}
+    // 事件注册：输入框Enter键添加标签
+    // @ts-ignore
+    this.contentEl.querySelector("#add-tag-btn").onclick = () => {
+      addTag(input.value.trim());
+      input.value = ''; // 清空输入框
+      addBtn.onclick = () => {
+        addTag(input.value.trim());
+        input.value = ''; // 清空输入框
+      }
+    }
 
-		// 事件注册：添加按钮点击添加标签
-		addBtn.addEventListener('click', () => {
-			addTag(input.value.trim());
-			input.value = ''; // 清空输入框
-		});
-		this.contentEl.querySelectorAll('.smm-tag-remove').forEach(t=>{
-			// @ts-ignore
-			t.onclick = ()=>{
-				// @ts-ignore
-				tagsList.removeChild(t.parentNode)
-			}
-		})
-		// 动态添加标签到列表
-		function addTag(text: string) {
+    // 事件注册：添加按钮点击添加标签
+    addBtn.addEventListener('click', () => {
+      addTag(input.value.trim());
+      input.value = ''; // 清空输入框
+    });
+    this.contentEl.querySelectorAll('.smm-tag-remove').forEach(t => {
+      // @ts-ignore
+      t.onclick = () => {
+        // @ts-ignore
+        tagsList.removeChild(t.parentNode)
+      }
+    })
+    // 动态添加标签到列表
+    function addTag(text: string) {
 
-			if (!text) return;
+      if (!text) return;
 
-			const tagElement = document.createElement('div');
-			tagElement.className = 'smm-tag-item';
-			const removeBtn = document.createElement('span')
-			removeBtn.innerText = '×'
-			removeBtn.classList.add('smm-tag-remove')
-			tagElement.innerHTML = `
+      const tagElement = document.createElement('div');
+      tagElement.className = 'smm-tag-item';
+      const removeBtn = document.createElement('span')
+      removeBtn.innerText = '×'
+      removeBtn.classList.add('smm-tag-remove')
+      tagElement.innerHTML = `
       ${text}
     `;
-			tagElement.appendChild(removeBtn)
-
-			tagsList.appendChild(tagElement);
-			removeBtn.addEventListener('click', () => {
-				tagsList.removeChild(tagElement);
-			});
-		}
-
-	}
-	getTagArray() {
-		const tagsList = this.contentEl.querySelector('#tags-list') as HTMLElement;
-		const tagElements = tagsList.querySelectorAll('.smm-tag-item');
-
-		return Array.from(tagElements).map(element => {
-			// 移除删除按钮文本
-			const text = element.textContent?.replace('×', '').trim() || '';
-
-			return {
-				text,
-				style: {
-					backgroundColor: getComputedStyle(element).backgroundColor,
-					color: getComputedStyle(element).color
-				}
-			};
-		});
-	}
-	bandOnPanel(){
-		const tabs = this.contentEl.querySelectorAll(".smm-tab")
-		const tabContents = this.contentEl.querySelectorAll(".smm-contents-container")
-		// @ts-ignore
-		for(const tab of tabs){
-			tab.onclick = ()=>{
-				const contentClassName = tab.getAttribute("calor");
-				// @ts-ignore
-				for(const tab2 of tabs){
-					tab2.classList.remove("active")
-				}
-				// @ts-ignore
-				for(const tab2content of tabContents){
-					if(tab2content.classList.contains(contentClassName)){
-						tab2content.removeAttribute("style")
-						continue
-					}
-					tab2content.style.display = "none"
-				}
-				tab.classList.add("active")
-			}
-		}
-	}
-	getTheme(){
-		this.changeCalorTheme()
-	}
-	changeCalorTheme(){
-		const select = this.contentEl.querySelector('#theme-category-select');
-		const lightThemes = this.contentEl.querySelector('#light-themes');
-		const darkThemes = this.contentEl.querySelector('#dark-themes');
-		const minimalThemes = this.contentEl.querySelector('#minimal-themes');
-
-		// @ts-ignore
-		select.addEventListener('change', function () {
-			const value = this.value;
-			if (value === 'all') {
-				// @ts-ignore
-				lightThemes.classList.remove('hidden');
-				// @ts-ignore
-				darkThemes.classList.remove('hidden');
-				// @ts-ignore
-				minimalThemes.classList.remove('hidden');
-			} else if (value === 'light') {
-				// @ts-ignore
-				lightThemes.classList.remove('hidden');
-				// @ts-ignore
-				darkThemes.classList.add('hidden');
-				// @ts-ignore
-				minimalThemes.classList.add('hidden');
-			} else if (value === 'dark') {
-				// @ts-ignore
-				lightThemes.classList.add('hidden');
-				// @ts-ignore
-				darkThemes.classList.remove('hidden');
-				// @ts-ignore
-				minimalThemes.classList.add('hidden');
-			} else if (value ==='minimal') {
-				// @ts-ignore
-				lightThemes.classList.add('hidden');
-				// @ts-ignore
-				darkThemes.classList.add('hidden');
-				// @ts-ignore
-				minimalThemes.classList.remove('hidden');
-			}
-		});
-	}
-	upload_Image(){
-		const dropzone = this.contentEl.querySelector('#dropzone');
-		const previewImage = this.contentEl.querySelector('#preview-image');
-		const previewPlaceholder = this.contentEl.querySelector('#preview-placeholder');
-		const dataurlField = this.contentEl.querySelector('#dataurl-field');
-		const uploadButton = this.contentEl.querySelector('#upload-button');
-		const uploadBgButton = this.contentEl.querySelector('#upload-bg-button');
-		const urlInput = this.contentEl.querySelector('#url-input');
-		const loadUrlButton = this.contentEl.querySelector('#load-url');
-		const pasteButton = this.contentEl.querySelector('#paste-button');
-
-		// 隐藏的文件输入框
-		const fileInput = document.createElement('input');
-		fileInput.type = 'file';
-		fileInput.accept = 'image/*';
-		document.body.appendChild(fileInput);
-
-		// 粘贴状态
-		let pasteEnabled = false;
-
-		// 处理文件上传
-		function handleFile(file: Blob) {
-			if (!file.type.match('image.*')) {
-				new Notice('请上传图片文件！',3000);
-				return;
-			}
-
-			const reader = new FileReader();
-			reader.onload = function(e) {
-				// @ts-ignore
-				const dataUrl = e.target.result;
-				// @ts-ignore
-				previewImage.src = dataUrl;
-				// @ts-ignore
-				previewImage.style.display = 'block';
-				// @ts-ignore
-				previewPlaceholder.style.display = 'none';
-				// @ts-ignore
-				dataurlField.value = dataUrl;
-				// @ts-ignore
-				uploadButton.disabled = false;
-				// @ts-ignore
-				uploadBgButton.disabled = false;
-			};
-			reader.readAsDataURL(file);
-		}
-		// @ts-ignore
-		const timer = null
-		// 开始粘贴倒计时
-		function startPasteCountdown() {
-			// @ts-ignore
-			clearTimeout(timer)
-			pasteEnabled = true;
-			// @ts-ignore
-			pasteButton.classList.add('active');
-			// @ts-ignore
-			setTimeout(()=>{
-				// @ts-ignore
-				pasteButton.classList.remove('active');
-			},800)
-		}
-
-		// 点击上传区域
-		// @ts-ignore
-		dropzone.addEventListener('click', () => {
-			fileInput.click();
-		});
-
-		// 文件选择
-		fileInput.addEventListener('change', (e) => {
-			// @ts-ignore
-			if (e.target.files.length > 0) {
-				// @ts-ignore
-				handleFile(e.target.files[0]);
-			}
-		});
-
-		// 拖放处理
-		// @ts-ignore
-		dropzone.addEventListener('dragover', (e) => {
-			e.preventDefault();
-			// @ts-ignore
-			dropzone.classList.add('active');
-		});
-
-		// @ts-ignore
-		dropzone.addEventListener('dragleave', () => {
-			// @ts-ignore
-			dropzone.classList.remove('active');
-		});
-
-		// @ts-ignore
-		dropzone.addEventListener('drop', (e) => {
-			e.preventDefault();
-			// @ts-ignore
-			dropzone.classList.remove('active');
-
-			// @ts-ignore
-			if (e.dataTransfer.files.length > 0) {
-				// @ts-ignore
-				handleFile(e.dataTransfer.files[0]);
-			}
-		});
-
-		// 粘贴图片
-		document.addEventListener('paste', (e) => {
-			if (!pasteEnabled) return;
-
-			if (e.clipboardData && e.clipboardData.items) {
-				// @ts-ignore
-				for (const item of e.clipboardData.items) {
-					if (item.kind === 'file') {
-						const file = item.getAsFile();
-						handleFile(file);
-						pasteEnabled = false;
-						// @ts-ignore
-						pasteButton.classList.remove('active');
-						break;
-					}
-				}
-			}
-		});
-
-		// 点击粘贴按钮
-		// @ts-ignore
-		pasteButton.addEventListener('click', () => {
-			startPasteCountdown();
-		});
-
-		// URL 加载
-		// @ts-ignore
-		loadUrlButton.addEventListener('click', () => {
-			// @ts-ignore
-			const url = urlInput.value.trim();
-			if (!url) {
-				alert('请输入图片 URL');
-				return;
-			}
-
-			const fullUrl = url.startsWith('http') ? url : `https://${url}`;
-
-			// 显示加载状态
-			// @ts-ignore
-			previewPlaceholder.textContent = '加载中...';
-			// @ts-ignore
-			previewPlaceholder.style.display = 'block';
-			// @ts-ignore
-			previewImage.style.display = 'none';
-
-			// 使用Image对象加载图片（无需CORS）
-			const img = new Image();
-			let timeoutId: string | number | NodeJS.Timeout | null | undefined = null;
-
-			// 设置超时
-			const setLoadTimeout = () => {
-				timeoutId = setTimeout(() => {
-					// @ts-ignore
-					previewPlaceholder.textContent = '加载超时，请检查URL或网络';
-				}, 10000);
-			};
-
-			img.onload = () => {
-				// @ts-ignore
-				clearTimeout(timeoutId);
-				// @ts-ignore
-				previewImage.src = fullUrl;  // 直接使用原始URL
-				// @ts-ignore
-				previewImage.style.display = 'block';
-				// @ts-ignore
-				previewPlaceholder.style.display = 'none';
-				// @ts-ignore
-				dataurlField.value = fullUrl;  // 存储URL而非DataURL
-				// @ts-ignore
-				uploadButton.disabled = false;
-				// @ts-ignore
-				uploadBgButton.disabled = false;
-			};
-
-			img.onerror = () => {
-				// @ts-ignore
-				clearTimeout(timeoutId);
-				// @ts-ignore
-				previewPlaceholder.textContent = '加载失败，请检查URL是否有效';
-			};
-
-			img.src = fullUrl;
-			setLoadTimeout();
-		});
-
-		// 上传按钮点击事件
-			// @ts-ignore
-			uploadButton.onclick = () => {
-				// @ts-ignore
-				const dataUrl = dataurlField.value;
-				if (!dataUrl) {
-					return;
-				}
-				for(const anode of this.activeNodeList){
-					anode.setImage({
-						url: dataUrl,
-						title: '',
-						width: 100,// 图片的宽高也不能少
-						height: 100
-					})
-				}
-				// @ts-ignore
-				previewImage.src = ""
-				// @ts-ignore
-				dataurlField.value = ""
-			}
-	}
-	async getIconize() {
-		const customeIcon = []
-		const iconPath = `.obsidian/icons`
-		const removeWidthAndHeight = (svgString: string): string => {
-			const widthRe = new RegExp(/width="[\d.]+(px)?"/);
-			const heightRe = new RegExp(/height="[\d.]+(px)?"/);
-			// 替换 width 属性
-			if (svgString.match(widthRe)) {
-				svgString = svgString.replace(widthRe, '');
-			}
-			// 替换 height 属性
-			if (svgString.match(heightRe)) {
-				svgString = svgString.replace(heightRe, '');
-			}
-			// 移除 XML 声明和 DOCTYPE 部分
-			svgString = svgString.replace(/<\?xml[^>]*\?>/, '');
-			svgString = svgString.replace(/<!DOCTYPE[^>]*>/, '');
-
-			// 移除不必要的空格和换行符
-			svgString = svgString.replace(/(\r\n|\n|\r)/gm, '');
-			svgString = svgString.replace(/>\s+</gm, '><');
-			return svgString;
-		};
-		try {
-			const directoryContent = await this.app.vault.adapter.list(iconPath);
-			for (const path of directoryContent.folders) {
-				const svgfiles = await this.app.vault.adapter.list(path);
-				const icons = {
-					name: path.split('/')[path.split('/').length - 1].split('.')[0],
-					type: path.split('/')[path.split('/').length - 1].split('.')[0],
-					list: [
-
-					]
-				}
-				let count = 1
-				for(const svg of svgfiles.files){
-					const svgDom = await this.app.vault.adapter.read(svg);
-					const modifySvgDom = removeWidthAndHeight(svgDom)
-					icons.list.push(
-						// @ts-ignore
-						{name:String(count),icon:`${modifySvgDom}`}
-					)
-					count++
-				}
-				customeIcon.push(icons)
-			}
-			return customeIcon
-		}catch{
-			console.log('未安装iconize插件')
-			return []
-		}
-	}
-	async renderIcons() {
-		const container = this.contentEl.querySelector('#iconsContainer');
-		// 清空容器
-		// @ts-ignore
-		container.innerHTML = '';
-
-		// @ts-ignore
-		const newIcons = nodeIconList.concat(this.customIcons)
-		// 遍历图标数据中的每个类别
-		for (const category of newIcons){
-			// 创建类别容器
-			const categoryContainer = document.createElement('div');
-			categoryContainer.className = 'smm-imgtag-category';
-
-			// 创建类别标题
-			const categoryTitle = document.createElement('div');
-			categoryTitle.className = 'smm-imgtag-category-title';
-			categoryTitle.textContent = category.name;
-
-			// 创建图标网格
-			const iconGrid = document.createElement('div');
-			iconGrid.className = 'smm-imgtag-grid';
-
-			// 添加图标到网格
-			for(const iconItem of category.list){
-				const iconCard = document.createElement('div');
-				iconCard.className = 'smm-imgtag-icon-card';
-				iconCard.setAttribute("destiny", category.type+"_"+iconItem.name)
-				const iconElement = document.createElement('div');
-				iconElement.className = 'smm-imgtag-icon';
-				iconElement.innerHTML = iconItem.icon;
-				// @ts-ignore
-
-				const iconName = document.createElement('div');
-				iconName.className = 'smm-imgtag-icon-name';
-				iconName.textContent = iconItem.name;
-
-				iconCard.appendChild(iconElement);
-				iconCard.appendChild(iconName);
-				iconGrid.appendChild(iconCard);
-			}
-
-			// 将标题和网格添加到类别容器
-			categoryContainer.appendChild(categoryTitle);
-			categoryContainer.appendChild(iconGrid);
-
-			// 将类别容器添加到主容器
-			// @ts-ignore
-			container.appendChild(categoryContainer);
-		}
-	}
-	outLinkrefresh(){
-		const data = this.mindMap.getData()
-		smm2outlines(this.mindMap,data,this.contentEl,document)
-		resize_panel(this.contentEl,document)
-	}
-
-	setUniversalStyle() {
-		// @ts-ignore
-		for(const color of this.contentEl.querySelectorAll('.smm-ustyle-color-square')){
-			color.onclick = ()=> {
-				this.mindMap.setThemeConfig({
-					...this.mindMap.themeConfig,
-					backgroundColor: color.style['background-color']
-				})
-			}
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-bg-color').addEventListener('change', ()=> {
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				backgroundColor: this.contentEl.querySelector('#smm-bg-color').value
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-ustyle-line-color').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				lineColor: this.contentEl.querySelector('#smm-ustyle-line-color').value,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-ustyle-line-width').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				lineWidth: this.contentEl.querySelector('#smm-ustyle-line-width').value,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-ustyle-line-width').value = this.mindMap.themeConfig.lineWidth
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-ustyle-line-fad').addEventListener('change',()=>{
-			// @ts-ignore
-			const style = this.contentEl.querySelector('#smm-ustyle-line-fad').value
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				lineStyle: style,
-				rootLineKeepSameInCurve: true,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-ustyle-line-fad').value = this.mindMap.themeConfig.lineStyle
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-straight-radiu').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				lineRadius: Number(this.contentEl.querySelector('#smm-straight-radiu').value),
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-if-arrow').addEventListener('change',()=>{
-				this.mindMap.setThemeConfig({
-					...this.mindMap.themeConfig,
-					// @ts-ignore
-					showLineMarker: this.contentEl.querySelector('#smm-if-arrow').checked?true:false,
-				})
-			this.mindMap.emit('data_change')
-		})
-		if(this.mindMap.themeConfig.showLineMarker){
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-if-arrow').checked=true
-		}else{
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-if-arrow').removeAttribute('checked')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#upload-bg-button').onclick = ()=>{
-			const dataurlField = this.contentEl.querySelector('#dataurl-field');
-			// @ts-ignore
-			const dataUrl = dataurlField.value;
-			if (!dataUrl) {
-				return;
-			}
-			this.mindMap.setThemeConfig({
-				backgroundImage: dataUrl,
-				backgroundRepeat: 'no-repeat',
-				backgroundPosition: 'center center',
-				backgroundSize: 'cover'
-			})
-			const previewImage = this.contentEl.querySelector('#preview-image');
-			// @ts-ignore
-			previewImage.src = ""
-			// @ts-ignore
-			dataurlField.value = ""
-			this.mindMap.emit('data_change')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#clear-bg-button').onclick = ()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				backgroundImage: '',
-			})
-			this.mindMap.emit('data_change')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('.smm-ustyle-rainbow-line').onclick = ()=>{
-			this.mindMap.rainbowLines.updateRainLinesConfig({open:true})
-			this.mindMap.emit('data_change')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-close-rainbow').onclick = ()=>{
-			this.mindMap.rainbowLines.updateRainLinesConfig({open:false})
-			this.mindMap.emit('data_change')
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-generalize-color').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				generalizationLineColor: this.contentEl.querySelector('#smm-generalize-color').value,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-generalize-width').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				generalizationLineWidth: this.contentEl.querySelector('#smm-generalize-width').value,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-generalize-width').value = this.mindMap.themeConfig.generalizationLineWidth
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-associal-line').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				associativeLineColor: this.contentEl.querySelector('#smm-associal-line').value,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-associalline-width').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				associativeLineWidth: this.contentEl.querySelector('#smm-associalline-width').value,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-associalline-width').value = this.mindMap.themeConfig.associativeLineWidth
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-associalline-active').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				associativeLineActiveColor: this.contentEl.querySelector('#smm-associalline-active').value,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-asocialline-active-width').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				associativeLineActiveWidth: this.contentEl.querySelector('#smm-asocialline-active-width').value,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-asocialline-active-width').value = this.mindMap.themeConfig.associativeLineActiveWidth
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-line-word').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				associativeLineTextFontFamily: this.contentEl.querySelector('#smm-line-word').value,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-line-word').value = this.mindMap.themeConfig.associativeLineTextFontFamily
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-line-word-color').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				associativeLineTextColor: this.contentEl.querySelector('#smm-line-word-color').value,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-line-word-size').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				associativeLineTextFontSize: this.contentEl.querySelector('#smm-line-word-size').value,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-line-word-size').value = this.mindMap.themeConfig.associativeLineTextFontSize
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-border-style').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				nodeUseLineStyle: this.contentEl.querySelector('#smm-node-border-style').checked,
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-border-style').value = this.mindMap.themeConfig.nodeUseLineStyle
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-ustyle-node-padding-x').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				paddingX: Number(this.contentEl.querySelector('#smm-ustyle-node-padding-x').value),
-			})
-			this.mindMap.emit('data_change')
-
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-ustyle-node-padding-x').value = this.mindMap.themeConfig.paddingX
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-ustyle-node-padding-y').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				paddingY: Number(this.contentEl.querySelector('#smm-ustyle-node-padding-y').value),
-			})
-			this.mindMap.emit('data_change')
-			// @ts-ignore
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-ustyle-node-padding-y').value = this.mindMap.themeConfig.paddingY
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-imgTag-size').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				// @ts-ignore
-				iconSize: Number(this.contentEl.querySelector('#smm-imgTag-size').value),
-			})
-			this.mindMap.emit('data_change')
-
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-imgTag-size').value = this.mindMap.themeConfig.iconSize
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-second').onclick = ()=>{
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-node-second').classList.add('active')
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-node-third').classList.remove('active')
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-us-second-style').removeAttribute('style')
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-us-third-style').style.display = 'none'
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-third').onclick = ()=>{
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-node-third').classList.add('active')
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-node-second').classList.remove('active')
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-us-third-style').removeAttribute('style')
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-us-second-style').style.display = 'none'
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-justify-margin').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-					second: {
-						// @ts-ignore
-						marginX: Number(this.contentEl.querySelector('#smm-node-justify-margin').value),
-					},
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-justify-margin').value = this.mindMap.themeConfig.second.marginX
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-vertical-margin').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				second: {
-					// @ts-ignore
-					marginY: Number(this.contentEl.querySelector('#smm-node-vertical-margin').value)
-				},
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-vertical-margin').value = this.mindMap.themeConfig.second.marginY
-
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-t-justify-margin').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				node: {
-					// @ts-ignore
-					marginX: Number(this.contentEl.querySelector('#smm-node-t-justify-margin').value),
-				},
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-t-justify-margin').value = this.mindMap.themeConfig.node.marginX
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-t-vertical-margin').addEventListener('change',()=>{
-			this.mindMap.setThemeConfig({
-				...this.mindMap.themeConfig,
-				node: {
-					// @ts-ignore
-					marginY: Number(this.contentEl.querySelector('#smm-node-t-vertical-margin').value)
-				},
-			})
-			this.mindMap.emit('data_change')
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-t-vertical-margin').value = this.mindMap.themeConfig.node.marginY
-	}
-	setNodeStyle(){
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-word-zt').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('fontFamily',this.contentEl.querySelector('#smm-node-word-zt').value)})
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-word-zh').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('fontSize',Number(this.contentEl.querySelector('#smm-node-word-zh').value))})
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-bgcolor').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('color',this.contentEl.querySelector('#smm-nodestyle-bgcolor').value)})
-		})
-
-		// @ts-ignore
-		this.contentEl.querySelector('.smm-nodestyle-bold').addEventListener('click',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('fontWeight', 'bold')})
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('.smm-nodestyle-italic').addEventListener('click',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('fontStyle', 'italic')})
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('.smm-nodestyle-underline').addEventListener('click',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('textDecoration', 'underline')})
-		})
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-border-color').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('borderColor',this.contentEl.querySelector('#smm-nodestyle-border-color').value)})
-		})
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-border-color').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('borderColor',this.contentEl.querySelector('#smm-nodestyle-border-color').value)})
-		})
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-line').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('borderDasharray',this.contentEl.querySelector('#smm-nodestyle-line').value)})
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-line-width').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('borderWidth',Number(this.contentEl.querySelector('#smm-nodestyle-line-width').value))})
-		})
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-roundRadiu').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('borderRadius',Number(this.contentEl.querySelector('#smm-nodestyle-roundRadiu').value))})
-		})
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-bgcolor-bg').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('fillColor',this.contentEl.querySelector('#smm-nodestyle-bgcolor-bg').value)})
-		})
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-shape').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('shape',this.contentEl.querySelector('#smm-node-shape').value)})
-		})
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodeline-color').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('lineColor',this.contentEl.querySelector('#smm-nodeline-color').value)})
-		})
-
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-ys-style').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('lineDasharray',this.contentEl.querySelector('#smm-node-ys-style').value)})
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-line-width').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('lineWidth',Number(this.contentEl.querySelector('#smm-node-line-width').value))})
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-justify-padding').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('paddingX',Number(this.contentEl.querySelector('#smm-nodestyle-justify-padding').value))})
-		})
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-vertical-padding').addEventListener('change',()=>{
-			// @ts-ignore
-			this.activeNodeList.forEach((anode)=>{anode.setStyle('paddingY',Number(this.contentEl.querySelector('#smm-nodestyle-vertical-padding').value))})
-		})
-	}
-	renderNodeStyle(){
-		if(!this.node){
-			return
-		}
-		if(this.node.isRoot){
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-node-word-zt').value = ''
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-node-word-zh').value = ''
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-nodestyle-line').value = ''
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-nodestyle-line-width').value = ''
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-nodestyle-roundRadiu').value = ''
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-node-shape').value = ''
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-node-ys-style').value = ''
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-node-line-width').value = ''
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-nodestyle-justify-padding').value = ''
-			// @ts-ignore
-			this.contentEl.querySelector('#smm-nodestyle-vertical-padding').value = ''
-			return
-		}
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-word-zt').value = this.node.getStyle('fontFamily', this.node.isRoot)
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-word-zh').value = this.node.getStyle('fontSize', this.node.isRoot)
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-line').value = this.node.getStyle('borderDasharray', this.node.isRoot)
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-line-width').value = this.node.getStyle('borderWidth', this.node.isRoot)
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-roundRadiu').value = this.node.getStyle('borderRadius', this.node.isRoot)
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-shape').value = this.node.getStyle('shape', this.node.isRoot)
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-ys-style').value = this.node.getStyle('lineDasharray', this.node.isRoot)
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-node-line-width').value = this.node.getStyle('lineWidth', this.node.isRoot)
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-justify-padding').value = this.node.getStyle('paddingX', this.node.isRoot)
-		// @ts-ignore
-		this.contentEl.querySelector('#smm-nodestyle-vertical-padding').value = this.node.getStyle('paddingY', this.node.isRoot)
-	}
-
-	/**
-	 * 浏览器环境：通过文件选择器获取文件内容
-	 * @returns {Promise<string|null>} 文件内容（文本格式）或 null（操作取消/失败）
-	 */
-	readFileByBrowser() {
-		return new Promise((resolve) => {
-			const input = document.createElement('input');
-			input.type = 'file';
-			input.accept = '.md, .xmind';
-
-			input.onchange = async (e) => {
-				// @ts-ignore
-				const file = e.target.files[0];
-				if (!file) {
-					resolve(null);
-					return;
-				}
-
-				const reader = new FileReader();
-				reader.onload = () => {
-					const content = reader.result?.toString();
-					resolve({ file, content });
-				};
-
-				reader.onerror = () => resolve(null);
-				reader.readAsText(file);
-			};
-
-			input.click();
-		});
-	}
-	public isLinkFile(file:TFile){
-		if(!file){
-			return false;
-		}
-		if (file.extension === 'Link')
-			return true
-		const cache = this.app.metadataCache.getFileCache(file)
-		if(cache?.frontmatter?.tags?.contains('linkMind')){
-			return true
-		}
-		return false
-	}
-	setSameWidth(){
-
-		function buildLevelMap(node: { getChildrenLength: () => number; children: any[]; }, level = 0, levelMap = {}) {
-			// 确保当前层级的数组存在
-			// @ts-ignore
-			if (!levelMap[level]) {
-				// @ts-ignore
-				levelMap[level] = [];
-			}
-
-			// 将当前节点添加到对应层级的数组
-			// @ts-ignore
-			levelMap[level].push(node);
-
-			// 递归处理所有子节点
-			if (node.getChildrenLength() > 0) {
-				node.children.forEach(child => {
-					// eslint-disable-next-line @typescript-eslint/no-unused-vars
-					buildLevelMap(child, level + 1, levelMap);
-				});
-			}
-
-			return levelMap;
-		}
-		const levelMap = buildLevelMap(this.mindMap.renderer.root);
-		// @ts-ignore
-		for(const i in levelMap){
-			// @ts-ignore
-			if(i == 0){
-				continue
-			}
-			// @ts-ignore
-			const nodelist = levelMap[i]
-			// @ts-ignore
-			nodelist.sort((node1,node2)=>node1.width - node2.width)
-			for(const node of nodelist){
-				node.setData({
-					customTextWidth: nodelist[nodelist.length - 1].width - 31,
-				})
-				this.mindMap.render()
-				console.log(nodelist[nodelist.length - 1].width)
-				// this.mindMap.emit('dragModifyNodeWidthEnd', node)
-			}
-		}
-	}
+      tagElement.appendChild(removeBtn)
+
+      tagsList.appendChild(tagElement);
+      removeBtn.addEventListener('click', () => {
+        tagsList.removeChild(tagElement);
+      });
+    }
+
+  }
+  getTagArray() {
+    const tagsList = this.contentEl.querySelector('#tags-list') as HTMLElement;
+    const tagElements = tagsList.querySelectorAll('.smm-tag-item');
+
+    return Array.from(tagElements).map(element => {
+      // 移除删除按钮文本
+      const text = element.textContent?.replace('×', '').trim() || '';
+
+      return {
+        text,
+        style: {
+          backgroundColor: getComputedStyle(element).backgroundColor,
+          color: getComputedStyle(element).color
+        }
+      };
+    });
+  }
+  bandOnPanel() {
+    const tabs = this.contentEl.querySelectorAll(".smm-tab")
+    const tabContents = this.contentEl.querySelectorAll(".smm-contents-container")
+    // @ts-ignore
+    for (const tab of tabs) {
+      tab.onclick = () => {
+        const contentClassName = tab.getAttribute("calor");
+        // @ts-ignore
+        for (const tab2 of tabs) {
+          tab2.classList.remove("active")
+        }
+        // @ts-ignore
+        for (const tab2content of tabContents) {
+          if (tab2content.classList.contains(contentClassName)) {
+            tab2content.removeAttribute("style")
+            continue
+          }
+          tab2content.style.display = "none"
+        }
+        tab.classList.add("active")
+      }
+    }
+  }
+  getTheme() {
+    this.changeCalorTheme()
+  }
+  changeCalorTheme() {
+    const select = this.contentEl.querySelector('#theme-category-select');
+    const lightThemes = this.contentEl.querySelector('#light-themes');
+    const darkThemes = this.contentEl.querySelector('#dark-themes');
+    const minimalThemes = this.contentEl.querySelector('#minimal-themes');
+
+    // @ts-ignore
+    select.addEventListener('change', function () {
+      const value = this.value;
+      if (value === 'all') {
+        // @ts-ignore
+        lightThemes.classList.remove('hidden');
+        // @ts-ignore
+        darkThemes.classList.remove('hidden');
+        // @ts-ignore
+        minimalThemes.classList.remove('hidden');
+      } else if (value === 'light') {
+        // @ts-ignore
+        lightThemes.classList.remove('hidden');
+        // @ts-ignore
+        darkThemes.classList.add('hidden');
+        // @ts-ignore
+        minimalThemes.classList.add('hidden');
+      } else if (value === 'dark') {
+        // @ts-ignore
+        lightThemes.classList.add('hidden');
+        // @ts-ignore
+        darkThemes.classList.remove('hidden');
+        // @ts-ignore
+        minimalThemes.classList.add('hidden');
+      } else if (value === 'minimal') {
+        // @ts-ignore
+        lightThemes.classList.add('hidden');
+        // @ts-ignore
+        darkThemes.classList.add('hidden');
+        // @ts-ignore
+        minimalThemes.classList.remove('hidden');
+      }
+    });
+  }
+  upload_Image() {
+    const dropzone = this.contentEl.querySelector('#dropzone');
+    const previewImage = this.contentEl.querySelector('#preview-image');
+    const previewPlaceholder = this.contentEl.querySelector('#preview-placeholder');
+    const dataurlField = this.contentEl.querySelector('#dataurl-field');
+    const uploadButton = this.contentEl.querySelector('#upload-button');
+    const uploadBgButton = this.contentEl.querySelector('#upload-bg-button');
+    const urlInput = this.contentEl.querySelector('#url-input');
+    const loadUrlButton = this.contentEl.querySelector('#load-url');
+    const pasteButton = this.contentEl.querySelector('#paste-button');
+
+    // 隐藏的文件输入框
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    document.body.appendChild(fileInput);
+
+    // 粘贴状态
+    let pasteEnabled = false;
+
+    // 处理文件上传
+    function handleFile(file: Blob) {
+      if (!file.type.match('image.*')) {
+        new Notice('请上传图片文件！', 3000);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        // @ts-ignore
+        const dataUrl = e.target.result;
+        // @ts-ignore
+        previewImage.src = dataUrl;
+        // @ts-ignore
+        previewImage.style.display = 'block';
+        // @ts-ignore
+        previewPlaceholder.style.display = 'none';
+        // @ts-ignore
+        dataurlField.value = dataUrl;
+        // @ts-ignore
+        uploadButton.disabled = false;
+        // @ts-ignore
+        uploadBgButton.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    }
+    // @ts-ignore
+    const timer = null
+    // 开始粘贴倒计时
+    function startPasteCountdown() {
+      // @ts-ignore
+      clearTimeout(timer)
+      pasteEnabled = true;
+      // @ts-ignore
+      pasteButton.classList.add('active');
+      // @ts-ignore
+      setTimeout(() => {
+        // @ts-ignore
+        pasteButton.classList.remove('active');
+      }, 800)
+    }
+
+    // 点击上传区域
+    // @ts-ignore
+    dropzone.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    // 文件选择
+    fileInput.addEventListener('change', (e) => {
+      // @ts-ignore
+      if (e.target.files.length > 0) {
+        // @ts-ignore
+        handleFile(e.target.files[0]);
+      }
+    });
+
+    // 拖放处理
+    // @ts-ignore
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      // @ts-ignore
+      dropzone.classList.add('active');
+    });
+
+    // @ts-ignore
+    dropzone.addEventListener('dragleave', () => {
+      // @ts-ignore
+      dropzone.classList.remove('active');
+    });
+
+    // @ts-ignore
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      // @ts-ignore
+      dropzone.classList.remove('active');
+
+      // @ts-ignore
+      if (e.dataTransfer.files.length > 0) {
+        // @ts-ignore
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    // 粘贴图片
+    document.addEventListener('paste', (e) => {
+      if (!pasteEnabled) return;
+
+      if (e.clipboardData && e.clipboardData.items) {
+        // @ts-ignore
+        for (const item of e.clipboardData.items) {
+          if (item.kind === 'file') {
+            const file = item.getAsFile();
+            handleFile(file);
+            pasteEnabled = false;
+            // @ts-ignore
+            pasteButton.classList.remove('active');
+            break;
+          }
+        }
+      }
+    });
+
+    // 点击粘贴按钮
+    // @ts-ignore
+    pasteButton.addEventListener('click', () => {
+      startPasteCountdown();
+    });
+
+    // URL 加载
+    // @ts-ignore
+    loadUrlButton.addEventListener('click', () => {
+      // @ts-ignore
+      const url = urlInput.value.trim();
+      if (!url) {
+        alert('请输入图片 URL');
+        return;
+      }
+
+      const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+
+      // 显示加载状态
+      // @ts-ignore
+      previewPlaceholder.textContent = '加载中...';
+      // @ts-ignore
+      previewPlaceholder.style.display = 'block';
+      // @ts-ignore
+      previewImage.style.display = 'none';
+
+      // 使用Image对象加载图片（无需CORS）
+      const img = new Image();
+      let timeoutId: string | number | NodeJS.Timeout | null | undefined = null;
+
+      // 设置超时
+      const setLoadTimeout = () => {
+        timeoutId = setTimeout(() => {
+          // @ts-ignore
+          previewPlaceholder.textContent = '加载超时，请检查URL或网络';
+        }, 10000);
+      };
+
+      img.onload = () => {
+        // @ts-ignore
+        clearTimeout(timeoutId);
+        // @ts-ignore
+        previewImage.src = fullUrl;  // 直接使用原始URL
+        // @ts-ignore
+        previewImage.style.display = 'block';
+        // @ts-ignore
+        previewPlaceholder.style.display = 'none';
+        // @ts-ignore
+        dataurlField.value = fullUrl;  // 存储URL而非DataURL
+        // @ts-ignore
+        uploadButton.disabled = false;
+        // @ts-ignore
+        uploadBgButton.disabled = false;
+      };
+
+      img.onerror = () => {
+        // @ts-ignore
+        clearTimeout(timeoutId);
+        // @ts-ignore
+        previewPlaceholder.textContent = '加载失败，请检查URL是否有效';
+      };
+
+      img.src = fullUrl;
+      setLoadTimeout();
+    });
+
+    // 上传按钮点击事件
+    // @ts-ignore
+    uploadButton.onclick = () => {
+      // @ts-ignore
+      const dataUrl = dataurlField.value;
+      if (!dataUrl) {
+        return;
+      }
+      for (const anode of this.activeNodeList) {
+        anode.setImage({
+          url: dataUrl,
+          title: '',
+          width: 100,// 图片的宽高也不能少
+          height: 100
+        })
+      }
+      // @ts-ignore
+      previewImage.src = ""
+      // @ts-ignore
+      dataurlField.value = ""
+    }
+  }
+  async getIconize() {
+    const customeIcon = []
+    const iconPath = `.obsidian/icons`
+    const removeWidthAndHeight = (svgString: string): string => {
+      const widthRe = new RegExp(/width="[\d.]+(px)?"/);
+      const heightRe = new RegExp(/height="[\d.]+(px)?"/);
+      // 替换 width 属性
+      if (svgString.match(widthRe)) {
+        svgString = svgString.replace(widthRe, '');
+      }
+      // 替换 height 属性
+      if (svgString.match(heightRe)) {
+        svgString = svgString.replace(heightRe, '');
+      }
+      // 移除 XML 声明和 DOCTYPE 部分
+      svgString = svgString.replace(/<\?xml[^>]*\?>/, '');
+      svgString = svgString.replace(/<!DOCTYPE[^>]*>/, '');
+
+      // 移除不必要的空格和换行符
+      svgString = svgString.replace(/(\r\n|\n|\r)/gm, '');
+      svgString = svgString.replace(/>\s+</gm, '><');
+      return svgString;
+    };
+    try {
+      const directoryContent = await this.app.vault.adapter.list(iconPath);
+      for (const path of directoryContent.folders) {
+        const svgfiles = await this.app.vault.adapter.list(path);
+        const icons = {
+          name: path.split('/')[path.split('/').length - 1].split('.')[0],
+          type: path.split('/')[path.split('/').length - 1].split('.')[0],
+          list: [
+
+          ]
+        }
+        let count = 1
+        for (const svg of svgfiles.files) {
+          const svgDom = await this.app.vault.adapter.read(svg);
+          const modifySvgDom = removeWidthAndHeight(svgDom)
+          icons.list.push(
+            // @ts-ignore
+            { name: String(count), icon: `${modifySvgDom}` }
+          )
+          count++
+        }
+        customeIcon.push(icons)
+      }
+      return customeIcon
+    } catch {
+      console.log('未安装iconize插件')
+      return []
+    }
+  }
+  async renderIcons() {
+    const container = this.contentEl.querySelector('#iconsContainer');
+    // 清空容器
+    // @ts-ignore
+    container.innerHTML = '';
+
+    // @ts-ignore
+    const newIcons = nodeIconList.concat(this.customIcons)
+    // 遍历图标数据中的每个类别
+    for (const category of newIcons) {
+      // 创建类别容器
+      const categoryContainer = document.createElement('div');
+      categoryContainer.className = 'smm-imgtag-category';
+
+      // 创建类别标题
+      const categoryTitle = document.createElement('div');
+      categoryTitle.className = 'smm-imgtag-category-title';
+      categoryTitle.textContent = category.name;
+
+      // 创建图标网格
+      const iconGrid = document.createElement('div');
+      iconGrid.className = 'smm-imgtag-grid';
+
+      // 添加图标到网格
+      for (const iconItem of category.list) {
+        const iconCard = document.createElement('div');
+        iconCard.className = 'smm-imgtag-icon-card';
+        iconCard.setAttribute("destiny", category.type + "_" + iconItem.name)
+        const iconElement = document.createElement('div');
+        iconElement.className = 'smm-imgtag-icon';
+        iconElement.innerHTML = iconItem.icon;
+        // @ts-ignore
+
+        const iconName = document.createElement('div');
+        iconName.className = 'smm-imgtag-icon-name';
+        iconName.textContent = iconItem.name;
+
+        iconCard.appendChild(iconElement);
+        iconCard.appendChild(iconName);
+        iconGrid.appendChild(iconCard);
+      }
+
+      // 将标题和网格添加到类别容器
+      categoryContainer.appendChild(categoryTitle);
+      categoryContainer.appendChild(iconGrid);
+
+      // 将类别容器添加到主容器
+      // @ts-ignore
+      container.appendChild(categoryContainer);
+    }
+  }
+  outLinkrefresh() {
+    const data = this.mindMap.getData()
+    smm2outlines(this.mindMap, data, this.contentEl, document)
+    resize_panel(this.contentEl, document)
+  }
+
+  setUniversalStyle() {
+    // @ts-ignore
+    for (const color of this.contentEl.querySelectorAll('.smm-ustyle-color-square')) {
+      color.onclick = () => {
+        this.mindMap.setThemeConfig({
+          ...this.mindMap.themeConfig,
+          backgroundColor: color.style['background-color']
+        })
+      }
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-bg-color').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        backgroundColor: this.contentEl.querySelector('#smm-bg-color').value
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-ustyle-line-color').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        lineColor: this.contentEl.querySelector('#smm-ustyle-line-color').value,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-ustyle-line-width').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        lineWidth: this.contentEl.querySelector('#smm-ustyle-line-width').value,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-ustyle-line-width').value = this.mindMap.themeConfig.lineWidth
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-ustyle-line-fad').addEventListener('change', () => {
+      // @ts-ignore
+      const style = this.contentEl.querySelector('#smm-ustyle-line-fad').value
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        lineStyle: style,
+        rootLineKeepSameInCurve: true,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-ustyle-line-fad').value = this.mindMap.themeConfig.lineStyle
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-straight-radiu').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        lineRadius: Number(this.contentEl.querySelector('#smm-straight-radiu').value),
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-if-arrow').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        showLineMarker: this.contentEl.querySelector('#smm-if-arrow').checked ? true : false,
+      })
+      this.mindMap.emit('data_change')
+    })
+    if (this.mindMap.themeConfig.showLineMarker) {
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-if-arrow').checked = true
+    } else {
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-if-arrow').removeAttribute('checked')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#upload-bg-button').onclick = () => {
+      const dataurlField = this.contentEl.querySelector('#dataurl-field');
+      // @ts-ignore
+      const dataUrl = dataurlField.value;
+      if (!dataUrl) {
+        return;
+      }
+      this.mindMap.setThemeConfig({
+        backgroundImage: dataUrl,
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center center',
+        backgroundSize: 'cover'
+      })
+      const previewImage = this.contentEl.querySelector('#preview-image');
+      // @ts-ignore
+      previewImage.src = ""
+      // @ts-ignore
+      dataurlField.value = ""
+      this.mindMap.emit('data_change')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#clear-bg-button').onclick = () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        backgroundImage: '',
+      })
+      this.mindMap.emit('data_change')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('.smm-ustyle-rainbow-line').onclick = () => {
+      this.mindMap.rainbowLines.updateRainLinesConfig({ open: true })
+      this.mindMap.emit('data_change')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-close-rainbow').onclick = () => {
+      this.mindMap.rainbowLines.updateRainLinesConfig({ open: false })
+      this.mindMap.emit('data_change')
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-generalize-color').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        generalizationLineColor: this.contentEl.querySelector('#smm-generalize-color').value,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-generalize-width').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        generalizationLineWidth: this.contentEl.querySelector('#smm-generalize-width').value,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-generalize-width').value = this.mindMap.themeConfig.generalizationLineWidth
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-associal-line').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        associativeLineColor: this.contentEl.querySelector('#smm-associal-line').value,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-associalline-width').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        associativeLineWidth: this.contentEl.querySelector('#smm-associalline-width').value,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-associalline-width').value = this.mindMap.themeConfig.associativeLineWidth
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-associalline-active').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        associativeLineActiveColor: this.contentEl.querySelector('#smm-associalline-active').value,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-asocialline-active-width').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        associativeLineActiveWidth: this.contentEl.querySelector('#smm-asocialline-active-width').value,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-asocialline-active-width').value = this.mindMap.themeConfig.associativeLineActiveWidth
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-line-word').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        associativeLineTextFontFamily: this.contentEl.querySelector('#smm-line-word').value,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-line-word').value = this.mindMap.themeConfig.associativeLineTextFontFamily
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-line-word-color').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        associativeLineTextColor: this.contentEl.querySelector('#smm-line-word-color').value,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-line-word-size').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        associativeLineTextFontSize: this.contentEl.querySelector('#smm-line-word-size').value,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-line-word-size').value = this.mindMap.themeConfig.associativeLineTextFontSize
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-border-style').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        nodeUseLineStyle: this.contentEl.querySelector('#smm-node-border-style').checked,
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-border-style').value = this.mindMap.themeConfig.nodeUseLineStyle
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-ustyle-node-padding-x').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        paddingX: Number(this.contentEl.querySelector('#smm-ustyle-node-padding-x').value),
+      })
+      this.mindMap.emit('data_change')
+
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-ustyle-node-padding-x').value = this.mindMap.themeConfig.paddingX
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-ustyle-node-padding-y').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        paddingY: Number(this.contentEl.querySelector('#smm-ustyle-node-padding-y').value),
+      })
+      this.mindMap.emit('data_change')
+      // @ts-ignore
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-ustyle-node-padding-y').value = this.mindMap.themeConfig.paddingY
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-imgTag-size').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        // @ts-ignore
+        iconSize: Number(this.contentEl.querySelector('#smm-imgTag-size').value),
+      })
+      this.mindMap.emit('data_change')
+
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-imgTag-size').value = this.mindMap.themeConfig.iconSize
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-second').onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-node-second').classList.add('active')
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-node-third').classList.remove('active')
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-us-second-style').removeAttribute('style')
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-us-third-style').style.display = 'none'
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-third').onclick = () => {
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-node-third').classList.add('active')
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-node-second').classList.remove('active')
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-us-third-style').removeAttribute('style')
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-us-second-style').style.display = 'none'
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-justify-margin').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        second: {
+          // @ts-ignore
+          marginX: Number(this.contentEl.querySelector('#smm-node-justify-margin').value),
+        },
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-justify-margin').value = this.mindMap.themeConfig.second.marginX
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-vertical-margin').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        second: {
+          // @ts-ignore
+          marginY: Number(this.contentEl.querySelector('#smm-node-vertical-margin').value)
+        },
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-vertical-margin').value = this.mindMap.themeConfig.second.marginY
+
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-t-justify-margin').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        node: {
+          // @ts-ignore
+          marginX: Number(this.contentEl.querySelector('#smm-node-t-justify-margin').value),
+        },
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-t-justify-margin').value = this.mindMap.themeConfig.node.marginX
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-t-vertical-margin').addEventListener('change', () => {
+      this.mindMap.setThemeConfig({
+        ...this.mindMap.themeConfig,
+        node: {
+          // @ts-ignore
+          marginY: Number(this.contentEl.querySelector('#smm-node-t-vertical-margin').value)
+        },
+      })
+      this.mindMap.emit('data_change')
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-t-vertical-margin').value = this.mindMap.themeConfig.node.marginY
+  }
+  setNodeStyle() {
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-word-zt').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('fontFamily', this.contentEl.querySelector('#smm-node-word-zt').value) })
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-word-zh').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('fontSize', Number(this.contentEl.querySelector('#smm-node-word-zh').value)) })
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-bgcolor').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('color', this.contentEl.querySelector('#smm-nodestyle-bgcolor').value) })
+    })
+
+    // @ts-ignore
+    this.contentEl.querySelector('.smm-nodestyle-bold').addEventListener('click', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('fontWeight', 'bold') })
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('.smm-nodestyle-italic').addEventListener('click', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('fontStyle', 'italic') })
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('.smm-nodestyle-underline').addEventListener('click', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('textDecoration', 'underline') })
+    })
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-border-color').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('borderColor', this.contentEl.querySelector('#smm-nodestyle-border-color').value) })
+    })
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-border-color').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('borderColor', this.contentEl.querySelector('#smm-nodestyle-border-color').value) })
+    })
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-line').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('borderDasharray', this.contentEl.querySelector('#smm-nodestyle-line').value) })
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-line-width').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('borderWidth', Number(this.contentEl.querySelector('#smm-nodestyle-line-width').value)) })
+    })
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-roundRadiu').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('borderRadius', Number(this.contentEl.querySelector('#smm-nodestyle-roundRadiu').value)) })
+    })
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-bgcolor-bg').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('fillColor', this.contentEl.querySelector('#smm-nodestyle-bgcolor-bg').value) })
+    })
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-shape').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('shape', this.contentEl.querySelector('#smm-node-shape').value) })
+    })
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodeline-color').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('lineColor', this.contentEl.querySelector('#smm-nodeline-color').value) })
+    })
+
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-ys-style').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('lineDasharray', this.contentEl.querySelector('#smm-node-ys-style').value) })
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-line-width').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('lineWidth', Number(this.contentEl.querySelector('#smm-node-line-width').value)) })
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-justify-padding').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('paddingX', Number(this.contentEl.querySelector('#smm-nodestyle-justify-padding').value)) })
+    })
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-vertical-padding').addEventListener('change', () => {
+      // @ts-ignore
+      this.activeNodeList.forEach((anode) => { anode.setStyle('paddingY', Number(this.contentEl.querySelector('#smm-nodestyle-vertical-padding').value)) })
+    })
+  }
+  renderNodeStyle() {
+    if (!this.node) {
+      return
+    }
+    if (this.node.isRoot) {
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-node-word-zt').value = ''
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-node-word-zh').value = ''
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-nodestyle-line').value = ''
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-nodestyle-line-width').value = ''
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-nodestyle-roundRadiu').value = ''
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-node-shape').value = ''
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-node-ys-style').value = ''
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-node-line-width').value = ''
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-nodestyle-justify-padding').value = ''
+      // @ts-ignore
+      this.contentEl.querySelector('#smm-nodestyle-vertical-padding').value = ''
+      return
+    }
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-word-zt').value = this.node.getStyle('fontFamily', this.node.isRoot)
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-word-zh').value = this.node.getStyle('fontSize', this.node.isRoot)
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-line').value = this.node.getStyle('borderDasharray', this.node.isRoot)
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-line-width').value = this.node.getStyle('borderWidth', this.node.isRoot)
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-roundRadiu').value = this.node.getStyle('borderRadius', this.node.isRoot)
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-shape').value = this.node.getStyle('shape', this.node.isRoot)
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-ys-style').value = this.node.getStyle('lineDasharray', this.node.isRoot)
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-node-line-width').value = this.node.getStyle('lineWidth', this.node.isRoot)
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-justify-padding').value = this.node.getStyle('paddingX', this.node.isRoot)
+    // @ts-ignore
+    this.contentEl.querySelector('#smm-nodestyle-vertical-padding').value = this.node.getStyle('paddingY', this.node.isRoot)
+  }
+
+  /**
+   * 浏览器环境：通过文件选择器获取文件内容
+   * @returns {Promise<string|null>} 文件内容（文本格式）或 null（操作取消/失败）
+   */
+  readFileByBrowser() {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.md, .xmind';
+
+      input.onchange = async (e) => {
+        // @ts-ignore
+        const file = e.target.files[0];
+        if (!file) {
+          resolve(null);
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          const content = reader.result?.toString();
+          resolve({ file, content });
+        };
+
+        reader.onerror = () => resolve(null);
+        reader.readAsText(file);
+      };
+
+      input.click();
+    });
+  }
+  public isLinkFile(file: TFile) {
+    if (!file) {
+      return false;
+    }
+    if (file.extension === 'Link')
+      return true
+    const cache = this.app.metadataCache.getFileCache(file)
+    if (cache?.frontmatter?.tags?.contains('linkMind')) {
+      return true
+    }
+    return false
+  }
+  setSameWidth() {
+
+    function buildLevelMap(node: { getChildrenLength: () => number; children: any[]; }, level = 0, levelMap = {}) {
+      // 确保当前层级的数组存在
+      // @ts-ignore
+      if (!levelMap[level]) {
+        // @ts-ignore
+        levelMap[level] = [];
+      }
+
+      // 将当前节点添加到对应层级的数组
+      // @ts-ignore
+      levelMap[level].push(node);
+
+      // 递归处理所有子节点
+      if (node.getChildrenLength() > 0) {
+        node.children.forEach(child => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          buildLevelMap(child, level + 1, levelMap);
+        });
+      }
+
+      return levelMap;
+    }
+    const levelMap = buildLevelMap(this.mindMap.renderer.root);
+    // @ts-ignore
+    for (const i in levelMap) {
+      // @ts-ignore
+      if (i == 0) {
+        continue
+      }
+      // @ts-ignore
+      const nodelist = levelMap[i]
+      // @ts-ignore
+      nodelist.sort((node1, node2) => node1.width - node2.width)
+      for (const node of nodelist) {
+        node.setData({
+          customTextWidth: nodelist[nodelist.length - 1].width - 31,
+        })
+        this.mindMap.render()
+        console.log(nodelist[nodelist.length - 1].width)
+        // this.mindMap.emit('dragModifyNodeWidthEnd', node)
+      }
+    }
+  }
 }
